@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/dictionary_provider.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/about_screen.dart';
+import '../screens/guess_it_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -65,6 +66,25 @@ class AppDrawer extends StatelessWidget {
                 },
               ),
               const Divider(),
+              // This is the Games section
+              const ListTile(
+                title: Text('Games',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.grey)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.extension_outlined),
+                title: const Text('Guess It'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const GuessItScreen()),
+                  );
+                },
+              ),
+              const Divider(),
               ListTile(
                 leading: const Icon(Icons.info_outline),
                 title: const Text('Ilova haqida'),
@@ -87,7 +107,6 @@ class AppDrawer extends StatelessWidget {
                     ? Icons.dark_mode_outlined
                     : Icons.light_mode_outlined),
               ),
-              // Removed the subtitle from this SwitchListTile
               SwitchListTile(
                 title: const Text('Advanced Search'),
                 value: provider.isAdvancedSearch,

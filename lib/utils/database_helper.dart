@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart';
@@ -23,45 +24,23 @@ class DatabaseHelper {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, 'dictionary.db');
 
-    if (kDebugMode) {
-      print("DB_HELPER: Database path is: $path");
-    }
-
     bool dbExists = await databaseExists(path);
 
-    if (kDebugMode) {
-      print("DB_HELPER: Checking if database exists... Result: $dbExists");
-    }
-
     if (!dbExists) {
-      if (kDebugMode) {
-        print(
-            "DB_HELPER: Database not found. Attempting to copy from assets...");
-      }
       try {
         await Directory(dirname(path)).create(recursive: true);
         ByteData data = await rootBundle.load(join('assets', 'dictionary.db'));
         List<int> bytes =
             data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
         await File(path).writeAsBytes(bytes, flush: true);
-        if (kDebugMode) {
-          print("DB_HELPER: Database copied successfully.");
-        }
       } catch (e) {
         if (kDebugMode) {
           print("DB_HELPER: FATAL ERROR copying database: $e");
         }
         rethrow;
       }
-    } else {
-      if (kDebugMode) {
-        print("DB_HELPER: Database already exists. Skipping copy.");
-      }
     }
 
-    if (kDebugMode) {
-      print("DB_HELPER: Opening database at $path");
-    }
     try {
       return await openDatabase(path, readOnly: true);
     } catch (e) {
@@ -71,6 +50,104 @@ class DatabaseHelper {
       }
       rethrow;
     }
+  }
+
+  // New, highly optimized method to get a random game word without json_extract
+  Future<DictionaryEntry?> getGameWordForLevel(int level) async {
+    final db = await database;
+    final random = Random();
+
+    int wordLength = level + 3;
+    if (wordLength > 10) wordLength = 10;
+
+    int frequencyThreshold = level < 6 ? 70 : 40;
+    String lengthCondition = level < 6 ? '= $wordLength' : '<= 10';
+
+    // This function will try to find a word by randomly sampling
+    Future<DictionaryEntry?> findWord(
+        {required String lenCondition, required int freq}) async {
+      // Simplified WHERE clause without frequency
+      final whereClause = '''
+        direction = 'ENG_UZB' AND
+        LENGTH(main_translation_word) $lenCondition AND
+        INSTR(main_translation_word, ' ') = 0
+      ''';
+
+      final countResult = await db
+          .rawQuery('SELECT COUNT(*) FROM dictionary WHERE $whereClause');
+      final count = Sqflite.firstIntValue(countResult);
+
+      if (count == null || count == 0) return null;
+
+      // Try up to 20 times to find a word that matches the frequency in Dart
+      for (int i = 0; i < 20; i++) {
+        final randomOffset = random.nextInt(count);
+        final List<Map<String, dynamic>> maps = await db.query(
+          'dictionary',
+          where: whereClause,
+          limit: 1,
+          offset: randomOffset,
+        );
+
+        if (maps.isNotEmpty) {
+          final entry = DictionaryEntry.fromMap(maps.first);
+          if (entry.frequency.length >= 3) {
+            final freqSum =
+                entry.frequency[0] + entry.frequency[1] + entry.frequency[2];
+            if (freqSum > freq) {
+              return entry; // Found a suitable word
+            }
+          }
+        }
+      }
+      return null; // Failed to find a word after 20 attempts
+    }
+
+    // 1. Try with strictest rules
+    DictionaryEntry? word =
+        await findWord(lenCondition: lengthCondition, freq: frequencyThreshold);
+    // 2. If that fails, try with lower frequency
+    if (word == null) {
+      word = await findWord(lenCondition: lengthCondition, freq: 40);
+    }
+    // 3. If that still fails, try with any frequency
+    if (word == null) {
+      word = await findWord(lenCondition: lengthCondition, freq: 0);
+    }
+    // 4. As a final fallback, get any suitable word
+    if (word == null) {
+      word = await getGameWord();
+    }
+
+    return word;
+  }
+
+  Future<DictionaryEntry?> getGameWord() async {
+    final db = await database;
+    final whereClause = '''
+      direction = 'ENG_UZB' AND
+      LENGTH(main_translation_word) <= 10 AND
+      INSTR(main_translation_word, ' ') = 0
+    ''';
+
+    final countResult =
+        await db.rawQuery('SELECT COUNT(*) FROM dictionary WHERE $whereClause');
+    final count = Sqflite.firstIntValue(countResult);
+
+    if (count == null || count == 0) return null;
+
+    final randomOffset = Random().nextInt(count);
+    final List<Map<String, dynamic>> maps = await db.query(
+      'dictionary',
+      where: whereClause,
+      limit: 1,
+      offset: randomOffset,
+    );
+
+    if (maps.isNotEmpty) {
+      return DictionaryEntry.fromMap(maps.first);
+    }
+    return null;
   }
 
   Future<List<DictionaryEntry>> searchWord(
@@ -89,7 +166,6 @@ class DatabaseHelper {
     return [];
   }
 
-  // New method for advanced, full-text search
   Future<List<DictionaryEntry>> advancedSearch(
       String query, String direction) async {
     if (query.isEmpty) return [];
@@ -119,7 +195,7 @@ class DatabaseHelper {
         wildQuery,
         direction
       ],
-      limit: 50, // Limit results for performance
+      limit: 50,
     );
     if (maps.isNotEmpty) {
       return maps.map((map) => DictionaryEntry.fromMap(map)).toList();
