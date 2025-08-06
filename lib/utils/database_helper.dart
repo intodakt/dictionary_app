@@ -52,7 +52,49 @@ class DatabaseHelper {
     }
   }
 
-  // New, highly optimized method to get a random game word without json_extract
+  // Updated method for finding Hangman words
+  Future<DictionaryEntry?> getHangmanWord() async {
+    final db = await database;
+    final random = Random();
+
+    const whereClause = '''
+      direction = 'ENG_UZB' AND
+      part_of_speech = 'noun' AND
+      LENGTH(word) <= 8 AND
+      INSTR(word, ' ') = 0
+    ''';
+
+    final countResult =
+        await db.rawQuery('SELECT COUNT(*) FROM dictionary WHERE $whereClause');
+    final count = Sqflite.firstIntValue(countResult);
+
+    if (count == null || count == 0) return getGameWord(); // Fallback
+
+    // Try up to 20 times to find a word that matches the frequency in Dart
+    for (int i = 0; i < 20; i++) {
+      final randomOffset = random.nextInt(count);
+      final List<Map<String, dynamic>> maps = await db.query(
+        'dictionary',
+        where: whereClause,
+        limit: 1,
+        offset: randomOffset,
+      );
+
+      if (maps.isNotEmpty) {
+        final entry = DictionaryEntry.fromMap(maps.first);
+        if (entry.frequency.length >= 3) {
+          final freqSum =
+              entry.frequency[0] + entry.frequency[1] + entry.frequency[2];
+          if (freqSum > 70) {
+            return entry; // Found a suitable word
+          }
+        }
+      }
+    }
+    // Fallback if no word matches the strict criteria after 20 tries
+    return getGameWord();
+  }
+
   Future<DictionaryEntry?> getGameWordForLevel(int level) async {
     final db = await database;
     final random = Random();
@@ -63,10 +105,8 @@ class DatabaseHelper {
     int frequencyThreshold = level < 6 ? 70 : 40;
     String lengthCondition = level < 6 ? '= $wordLength' : '<= 10';
 
-    // This function will try to find a word by randomly sampling
     Future<DictionaryEntry?> findWord(
         {required String lenCondition, required int freq}) async {
-      // Simplified WHERE clause without frequency
       final whereClause = '''
         direction = 'ENG_UZB' AND
         LENGTH(main_translation_word) $lenCondition AND
@@ -79,7 +119,6 @@ class DatabaseHelper {
 
       if (count == null || count == 0) return null;
 
-      // Try up to 20 times to find a word that matches the frequency in Dart
       for (int i = 0; i < 20; i++) {
         final randomOffset = random.nextInt(count);
         final List<Map<String, dynamic>> maps = await db.query(
@@ -95,26 +134,22 @@ class DatabaseHelper {
             final freqSum =
                 entry.frequency[0] + entry.frequency[1] + entry.frequency[2];
             if (freqSum > freq) {
-              return entry; // Found a suitable word
+              return entry;
             }
           }
         }
       }
-      return null; // Failed to find a word after 20 attempts
+      return null;
     }
 
-    // 1. Try with strictest rules
     DictionaryEntry? word =
-        await findWord(lenCondition: lengthCondition, freq: frequencyThreshold);
-    // 2. If that fails, try with lower frequency
+        await findWord(freq: frequencyThreshold, lenCondition: lengthCondition);
     if (word == null) {
-      word = await findWord(lenCondition: lengthCondition, freq: 40);
+      word = await findWord(freq: 40, lenCondition: lengthCondition);
     }
-    // 3. If that still fails, try with any frequency
     if (word == null) {
-      word = await findWord(lenCondition: lengthCondition, freq: 0);
+      word = await findWord(freq: 0, lenCondition: lengthCondition);
     }
-    // 4. As a final fallback, get any suitable word
     if (word == null) {
       word = await getGameWord();
     }

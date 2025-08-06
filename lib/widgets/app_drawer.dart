@@ -4,6 +4,7 @@ import '../providers/dictionary_provider.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/about_screen.dart';
 import '../screens/guess_it_screen.dart';
+import '../screens/hangman_screen.dart'; // Import the new Hangman screen
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -66,7 +67,7 @@ class AppDrawer extends StatelessWidget {
                 },
               ),
               const Divider(),
-              // This is the Games section
+              // New Games Section
               const ListTile(
                 title: Text('Games',
                     style: TextStyle(
@@ -81,6 +82,19 @@ class AppDrawer extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                         builder: (context) => const GuessItScreen()),
+                  );
+                },
+              ),
+              // Added the new ListTile for the Hangman game
+              ListTile(
+                leading: const Icon(Icons.gamepad_outlined),
+                title: const Text('Hangman'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const HangmanScreen()),
                   );
                 },
               ),

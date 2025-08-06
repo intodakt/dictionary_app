@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/dictionary_provider.dart';
 import 'providers/game_provider.dart';
+import 'providers/hangman_provider.dart'; // Import the new provider
 import 'screens/home_screen.dart';
 
 void main() {
@@ -23,6 +24,8 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (context) => DictionaryProvider()),
         ChangeNotifierProvider(create: (context) => GameProvider()),
+        ChangeNotifierProvider(
+            create: (context) => HangmanProvider()), // Add the new provider
       ],
       child: Consumer<DictionaryProvider>(
         builder: (context, provider, child) {
