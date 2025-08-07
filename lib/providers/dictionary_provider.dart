@@ -15,9 +15,8 @@ class DictionaryProvider with ChangeNotifier {
   static const String _favoritesKey = 'favorites_ids';
   static const String _themeKey = 'theme_mode';
   static const String _advancedSearchKey = 'advanced_search';
-  static const String _uiLangKey = 'ui_language'; // Key for UI language
+  static const String _uiLangKey = 'ui_language';
 
-  // State variables
   String _searchQuery = '';
   List<DictionaryEntry> _suggestions = [];
   DictionaryEntry? _selectedWord;
@@ -29,9 +28,8 @@ class DictionaryProvider with ChangeNotifier {
   int? _expandedHistoryItemId;
   ThemeMode _themeMode = ThemeMode.light;
   bool _isAdvancedSearch = false;
-  String _uiLanguage = 'en'; // Add UI language state
+  String _uiLanguage = 'en';
 
-  // Getters
   String get searchQuery => _searchQuery;
   List<DictionaryEntry> get suggestions => _suggestions;
   DictionaryEntry? get selectedWord => _selectedWord;
@@ -43,7 +41,7 @@ class DictionaryProvider with ChangeNotifier {
   int? get expandedHistoryItemId => _expandedHistoryItemId;
   ThemeMode get themeMode => _themeMode;
   bool get isAdvancedSearch => _isAdvancedSearch;
-  String get uiLanguage => _uiLanguage; // Getter for UI language
+  String get uiLanguage => _uiLanguage;
 
   DictionaryProvider() {
     _initTts();
@@ -88,7 +86,9 @@ class DictionaryProvider with ChangeNotifier {
       _favorites = await _dbHelper.getWordsByIds(favoriteIds);
       final favoriteIdSet = favoriteIds.toSet();
       for (var word in _history) {
-        if (favoriteIdSet.contains(word.id)) word.isFavorite = true;
+        if (favoriteIdSet.contains(word.id)) {
+          word.isFavorite = true;
+        }
       }
       for (var fav in _favorites) {
         fav.isFavorite = true;
@@ -196,7 +196,7 @@ class DictionaryProvider with ChangeNotifier {
         await _saveHistory();
       }
     } catch (e) {
-      print("Error getting word details: $e");
+      // In a real app, you would use a logging package here
     }
     notifyListeners();
   }
@@ -214,7 +214,7 @@ class DictionaryProvider with ChangeNotifier {
         _selectedWord = details;
       }
     } catch (e) {
-      print("Error getting word details: $e");
+      // In a real app, you would use a logging package here
     }
     notifyListeners();
   }

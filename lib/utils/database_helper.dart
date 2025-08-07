@@ -152,22 +152,16 @@ class DatabaseHelper {
 
     DictionaryEntry? word =
         await findWord(freq: frequencyThreshold, lenCondition: lengthCondition);
-    if (word == null) {
-      word = await findWord(freq: 40, lenCondition: lengthCondition);
-    }
-    if (word == null) {
-      word = await findWord(freq: 0, lenCondition: lengthCondition);
-    }
-    if (word == null) {
-      word = await getGameWord();
-    }
+    word ??= await findWord(freq: 40, lenCondition: lengthCondition);
+    word ??= await findWord(freq: 0, lenCondition: lengthCondition);
+    word ??= await getGameWord();
 
     return word;
   }
 
   Future<DictionaryEntry?> getGameWord() async {
     final db = await database;
-    final whereClause = '''
+    const whereClause = '''
       direction = 'ENG_UZB' AND
       LENGTH(main_translation_word) <= 10 AND
       INSTR(main_translation_word, ' ') = 0

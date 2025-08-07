@@ -25,13 +25,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Consumer<DictionaryProvider>(
       builder: (context, provider, child) {
-        return WillPopScope(
-          onWillPop: () async {
+        return PopScope(
+          canPop: provider.selectedWord == null,
+          onPopInvoked: (bool didPop) {
+            if (didPop) {
+              return;
+            }
             if (provider.selectedWord != null) {
               provider.selectWord('', '');
-              return false;
             }
-            return true;
           },
           child: Scaffold(
             appBar: _buildAppBar(provider),
@@ -51,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
         transitionBuilder: (Widget child, Animation<double> animation) {
           return FadeTransition(
             opacity: animation,
-            child: ScaleTransition(child: child, scale: animation),
+            child: ScaleTransition(scale: animation, child: child),
           );
         },
         child: provider.isSearchActive
@@ -74,7 +76,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    color: theme.colorScheme.primary
+                        .withAlpha((0.1 * 255).toInt()),
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Row(
@@ -85,13 +88,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: theme.colorScheme.primary,
-                          fontSize: 16,
+                          fontSize: 14,
                         ),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
                         child: Icon(
-                          Icons.swap_horiz,
+                          Icons.cached, // Changed icon
                           size: 20,
                           color: theme.colorScheme.primary,
                         ),
@@ -101,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: theme.colorScheme.primary,
-                          fontSize: 16,
+                          fontSize: 14,
                         ),
                       ),
                     ],
@@ -280,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(15),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withAlpha((0.08 * 255).toInt()),
                 spreadRadius: 1,
                 blurRadius: 4,
                 offset: const Offset(0, 2),
@@ -316,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withAlpha((0.08 * 255).toInt()),
               spreadRadius: 1,
               blurRadius: 4,
               offset: const Offset(0, 2),
@@ -524,8 +527,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildChipList(List<String> words) {
-    if (words.isEmpty)
+    if (words.isEmpty) {
       return const Text('N/A', style: TextStyle(fontStyle: FontStyle.italic));
+    }
     return Wrap(
       spacing: 8.0,
       runSpacing: 4.0,

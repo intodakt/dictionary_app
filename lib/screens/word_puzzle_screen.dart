@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/word_puzzle_provider.dart';
-import '../providers/dictionary_provider.dart'; // Import DictionaryProvider
+import '../providers/dictionary_provider.dart';
 
 class WordPuzzleScreen extends StatefulWidget {
   const WordPuzzleScreen({super.key});
@@ -102,11 +102,21 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
         title: Text(isEnglish ? 'How to Play' : 'Qanday O\'ynash Kerak'),
         content: Text(isEnglish
             ? 'Slide the tiles to form words from left-to-right, up to the empty space. Valid words of 3 or more letters will earn you points.'
-            : 'Bo\'sh joygacha chapdan o\'ngga so\'zlar hosil qilish uchun plitkalarni suring. 3 yoki undan ortiq harfdan iborat haqiqiy so\'zlar sizga ball keltiradi.'),
+            : 'Bo\'sh joygacha chapdan o\'ngga so\'zlar hosil qilish uchun plitkalarni suring. 3 yoki undan ortiq harfdan iborat haqiqiy so\'zlar sizga ochko keltiradi.'),
+        actionsPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
           ),
         ],
       ),
@@ -117,21 +127,19 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Column(
           children: [
-            Expanded(
-              child: Text(
-                'Word: ${provider.currentWord}',
-                style: theme.textTheme.titleMedium,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
             Text(
-              'Max: ${provider.maxScore}',
+              'Max Score: ${provider.maxScore}',
               style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary),
+            ),
+            const Divider(),
+            Text(
+              'Word: ${provider.currentWord}',
+              style: theme.textTheme.titleMedium,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

@@ -112,11 +112,21 @@ class _GuessItScreenState extends State<GuessItScreen> {
         title: Text(isEnglish ? 'How to Play' : 'Qanday O\'ynash Kerak'),
         content: Text(isEnglish
             ? 'Guess the translation by spelling it out. Earn 10 points for each correct word. Solve 10 words to advance to the next level and earn 10 more hints!'
-            : 'Tarjimani harflab yozib toping. Har bir to\'g\'ri so\'z uchun 10 ball oling. Keyingi bosqichga o\'tish va yana 10 ta yordam olish uchun 10 ta so\'zni toping!'),
+            : 'Tarjimani harflab yozib toping. Har bir to\'g\'ri so\'z uchun 10 ochko oling. Keyingi bosqichga o\'tish va yana 10 ta yordam olish uchun 10 ta so\'zni toping!'),
+        actionsPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
           ),
         ],
       ),
@@ -134,7 +144,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withAlpha((0.08 * 255).toInt()),
             blurRadius: 4,
             offset: const Offset(0, 2),
           )
@@ -239,13 +249,12 @@ class _GuessItScreenState extends State<GuessItScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8.0),
             ),
             onPressed: provider.backspace,
-            child: Column(
+            child: const Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.backspace_outlined),
-                const SizedBox(height: 4),
-                Text(isEnglish ? 'Delete' : 'O\'chirish',
-                    style: const TextStyle(fontSize: 12)),
+                Icon(Icons.backspace_outlined),
+                SizedBox(height: 4),
+                Text('Delete', style: TextStyle(fontSize: 12)),
               ],
             ),
           ),
@@ -262,7 +271,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
               children: [
                 const Icon(Icons.lightbulb_outline),
                 const SizedBox(height: 4),
-                Text('${isEnglish ? 'Hint' : 'Yordam'} (${provider.hints})',
+                Text('Hint (${provider.hints})',
                     style: const TextStyle(fontSize: 12)),
               ],
             ),
@@ -279,13 +288,13 @@ class _GuessItScreenState extends State<GuessItScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8.0),
             ),
             onPressed: () => _showEndGameDialog(context, provider, isEnglish),
-            child: Column(
+            child: const Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.close),
-                const SizedBox(height: 4),
-                Text(isEnglish ? 'End Game' : 'Tugatish',
-                    style: const TextStyle(fontSize: 12),
+                Icon(Icons.close),
+                SizedBox(height: 4),
+                Text('End Game',
+                    style: TextStyle(fontSize: 12),
                     textAlign: TextAlign.center),
               ],
             ),

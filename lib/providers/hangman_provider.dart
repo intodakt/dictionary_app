@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/dictionary_entry.dart';
 import '../utils/database_helper.dart';
@@ -19,12 +18,15 @@ class HangmanProvider with ChangeNotifier {
   HangmanStatus get gameStatus => _gameStatus;
 
   String get wordToDisplay {
-    if (_currentWord == null) return '';
-    return _currentWord!.word
-        .split('')
-        .map((letter) =>
-            _guessedLetters.contains(letter.toLowerCase()) ? letter : '_')
-        .join(' ');
+    if (_currentWord == null) {
+      return '';
+    }
+    return _currentWord!.word.split('').map((letter) {
+      if (letter == '-' || letter == "'") {
+        return letter;
+      }
+      return _guessedLetters.contains(letter.toLowerCase()) ? letter : '_';
+    }).join(' ');
   }
 
   Future<void> startNewGame() async {
@@ -38,7 +40,9 @@ class HangmanProvider with ChangeNotifier {
   }
 
   void guessLetter(String letter) {
-    if (_gameStatus != HangmanStatus.playing) return;
+    if (_gameStatus != HangmanStatus.playing) {
+      return;
+    }
 
     final lowerLetter = letter.toLowerCase();
     if (!_guessedLetters.contains(lowerLetter)) {
@@ -57,8 +61,12 @@ class HangmanProvider with ChangeNotifier {
       _gameStatus = HangmanStatus.lost;
     } else {
       final word = _currentWord!.word.toLowerCase();
-      final allLettersGuessed =
-          word.split('').every((letter) => _guessedLetters.contains(letter));
+      final allLettersGuessed = word.split('').every((letter) {
+        if (letter == '-' || letter == "'") {
+          return true;
+        }
+        return _guessedLetters.contains(letter);
+      });
       if (allLettersGuessed) {
         _gameStatus = HangmanStatus.won;
       }

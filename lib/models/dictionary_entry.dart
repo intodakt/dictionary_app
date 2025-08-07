@@ -11,7 +11,7 @@ class DictionaryEntry {
   final String? mainTranslationMeaningUzb;
   final List<String> translationWords;
   final List<String> translationMeanings;
-  final List<int> frequency; // Changed to List<int>
+  final List<int> frequency;
   final List<String> synonyms;
   final List<String> antonyms;
   final List<Map<String, String>> exampleSentences;
@@ -36,7 +36,9 @@ class DictionaryEntry {
   });
 
   static dynamic _safeJsonDecode(String? jsonString) {
-    if (jsonString == null || jsonString.isEmpty) return null;
+    if (jsonString == null || jsonString.isEmpty) {
+      return null;
+    }
     try {
       return jsonDecode(jsonString);
     } catch (e) {
@@ -62,7 +64,6 @@ class DictionaryEntry {
       translationMeanings:
           List<String>.from(_safeJsonDecode(map['translation_meanings']) ?? []),
 
-      // Updated parsing logic for frequency
       frequency: decodedFrequency is List
           ? List<int>.from(decodedFrequency
               .map((e) => e is int ? e : int.tryParse(e.toString()) ?? 0))
@@ -71,10 +72,11 @@ class DictionaryEntry {
       synonyms: List<String>.from(_safeJsonDecode(map['synonyms']) ?? []),
       antonyms: List<String>.from(_safeJsonDecode(map['antonyms']) ?? []),
 
+      // Use whereType for a cleaner and safer cast
       exampleSentences: decodedSentences is List
           ? List<Map<String, String>>.from(decodedSentences
-              .where((item) => item is Map)
-              .map((item) => Map<String, String>.from(item as Map)))
+              .whereType<Map>()
+              .map((item) => Map<String, String>.from(item)))
           : [],
     );
   }

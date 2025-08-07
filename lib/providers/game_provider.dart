@@ -8,14 +8,12 @@ import '../utils/database_helper.dart';
 class GameProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
-  // Keys for persistence
   static const String _levelKey = 'game_level';
   static const String _scoreKey = 'game_score';
   static const String _hintsKey = 'game_hints';
   static const String _maxScoreKey = 'game_max_score';
   static const String _wordsInLevelKey = 'game_words_in_level';
 
-  // Game State
   DictionaryEntry? _currentWord;
   List<String> _shuffledLetters = [];
   String _userGuess = '';
@@ -27,7 +25,6 @@ class GameProvider with ChangeNotifier {
   int _hints = 10;
   int _maxScore = 0;
 
-  // Getters
   DictionaryEntry? get currentWord => _currentWord;
   List<String> get shuffledLetters => _shuffledLetters;
   String get userGuess => _userGuess;
@@ -81,7 +78,7 @@ class GameProvider with ChangeNotifier {
 
       _shuffledLetters = answer.split('');
 
-      final alphabet = 'abcdefghijklmnopqrstuvwxyz';
+      const alphabet = 'abcdefghijklmnopqrstuvwxyz';
       final random = Random();
       while (_shuffledLetters.length < 12) {
         _shuffledLetters.add(alphabet[random.nextInt(alphabet.length)]);

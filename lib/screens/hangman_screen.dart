@@ -100,14 +100,25 @@ class _HangmanScreenState extends State<HangmanScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(isEnglish ? 'How to Play Hangman' : 'O\'ynash Haqida'),
+        title:
+            Text(isEnglish ? 'How to Play Hangman' : 'Qanday O\'ynash Kerak'),
         content: Text(isEnglish
             ? 'Save this person from being hanged! A clue is given below. Guess the English word by picking letters. You only have 6 chances before it\'s too late.'
-            : 'Bu odamni xavfdan qutqaring! Quyida sizga so\'z ma\'nosi berilgan. Harflarni tanlab, inglizcha so\'zni toping. Sizda faqat 6 ta imkoniyat bor.'),
+            : 'Bu odamni osilishdan qutqaring! Quyida sizga bir ipuch berilgan. Harflarni tanlab, inglizcha so\'zni toping. Kech bo\'lmasidan oldin sizda faqat 6 ta imkoniyat bor.'),
+        actionsPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
           ),
         ],
       ),
@@ -127,13 +138,23 @@ class _HangmanScreenState extends State<HangmanScreen> {
             : (isEnglish ? 'Game Over' : 'O\'yin Tugadi')),
         content: Text(
             '${isEnglish ? 'The word was' : 'So\'z'}: ${provider.currentWord!.word}'),
+        actionsPadding:
+            const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              provider.startNewGame();
-            },
-            child: Text(isEnglish ? 'Play Again' : 'Yana O\'ynash'),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                provider.startNewGame();
+              },
+              child: Text(isEnglish ? 'Play Again' : 'Yana O\'ynash'),
+            ),
           ),
         ],
       ),
