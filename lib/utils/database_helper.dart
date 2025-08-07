@@ -52,7 +52,17 @@ class DatabaseHelper {
     }
   }
 
-  // Updated method for finding Hangman words
+  Future<bool> isWordValid(String word, String direction) async {
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'dictionary',
+      where: 'word = ? AND direction = ?',
+      whereArgs: [word.toLowerCase(), direction],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
   Future<DictionaryEntry?> getHangmanWord() async {
     final db = await database;
     final random = Random();
@@ -68,9 +78,8 @@ class DatabaseHelper {
         await db.rawQuery('SELECT COUNT(*) FROM dictionary WHERE $whereClause');
     final count = Sqflite.firstIntValue(countResult);
 
-    if (count == null || count == 0) return getGameWord(); // Fallback
+    if (count == null || count == 0) return getGameWord();
 
-    // Try up to 20 times to find a word that matches the frequency in Dart
     for (int i = 0; i < 20; i++) {
       final randomOffset = random.nextInt(count);
       final List<Map<String, dynamic>> maps = await db.query(
@@ -86,12 +95,11 @@ class DatabaseHelper {
           final freqSum =
               entry.frequency[0] + entry.frequency[1] + entry.frequency[2];
           if (freqSum > 70) {
-            return entry; // Found a suitable word
+            return entry;
           }
         }
       }
     }
-    // Fallback if no word matches the strict criteria after 20 tries
     return getGameWord();
   }
 

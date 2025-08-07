@@ -4,7 +4,8 @@ import '../providers/dictionary_provider.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/about_screen.dart';
 import '../screens/guess_it_screen.dart';
-import '../screens/hangman_screen.dart'; // Import the new Hangman screen
+import '../screens/hangman_screen.dart';
+import '../screens/word_puzzle_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -17,46 +18,31 @@ class AppDrawer extends StatelessWidget {
           child: ListView(
             padding: EdgeInsets.zero,
             children: <Widget>[
+              // Header without the language switch
               DrawerHeader(
                 decoration: BoxDecoration(
                   color: Theme.of(context).scaffoldBackgroundColor,
                 ),
-                child: Column(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    const Icon(Icons.book_outlined, size: 48),
-                    const SizedBox(height: 10),
-                    const Text(
+                    Icon(Icons.book_outlined, size: 48),
+                    SizedBox(height: 10),
+                    Text(
                       'LUG\'AT',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () {
-                        provider.toggleDirection();
-                        Navigator.pop(context);
-                      },
-                      child: Text(
-                        provider.direction.replaceAll('_', '-'),
-                        style: TextStyle(
-                          color: Colors.blue.shade700,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.history),
-                title: const Text('Tarix'),
-                onTap: () => Navigator.pop(context),
-              ),
+              // Main navigation items
               ListTile(
                 leading: const Icon(Icons.favorite_border),
-                title: const Text('Sevimlilar'),
+                title: const Text('Favourites'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -66,51 +52,17 @@ class AppDrawer extends StatelessWidget {
                   );
                 },
               ),
-              const Divider(),
-              // New Games Section
-              const ListTile(
-                title: Text('Games',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.grey)),
-              ),
+              // Language switcher in the main list
               ListTile(
-                leading: const Icon(Icons.extension_outlined),
-                title: const Text('Guess It'),
+                leading: const Icon(Icons.translate_outlined),
+                title: const Text('Language'),
+                trailing: Text(provider.direction.replaceAll('_', '-')),
                 onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const GuessItScreen()),
-                  );
-                },
-              ),
-              // Added the new ListTile for the Hangman game
-              ListTile(
-                leading: const Icon(Icons.gamepad_outlined),
-                title: const Text('Hangman'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const HangmanScreen()),
-                  );
+                  provider.toggleDirection();
                 },
               ),
               const Divider(),
-              ListTile(
-                leading: const Icon(Icons.info_outline),
-                title: const Text('Ilova haqida'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const AboutScreen()),
-                  );
-                },
-              ),
+              // Settings section
               SwitchListTile(
                 title: const Text('Dark Mode'),
                 value: provider.themeMode == ThemeMode.dark,
@@ -128,6 +80,63 @@ class AppDrawer extends StatelessWidget {
                   provider.toggleAdvancedSearch();
                 },
                 secondary: const Icon(Icons.manage_search_outlined),
+              ),
+              const Divider(),
+              // Games section
+              const ListTile(
+                title: Text('Games',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.grey)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.extension_outlined),
+                title: const Text('Guess It'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const GuessItScreen()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.gamepad_outlined),
+                title: const Text('Hangman'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const HangmanScreen()),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.grid_on),
+                title: const Text('Word Puzzle'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const WordPuzzleScreen()),
+                  );
+                },
+              ),
+              const Divider(),
+              // About section at the bottom
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('About'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const AboutScreen()),
+                  );
+                },
               ),
             ],
           ),
