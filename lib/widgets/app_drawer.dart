@@ -14,11 +14,11 @@ class AppDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<DictionaryProvider>(
       builder: (context, provider, child) {
+        final isEnglish = provider.uiLanguage == 'en';
         return Drawer(
           child: ListView(
             padding: EdgeInsets.zero,
             children: <Widget>[
-              // Header without the language switch
               DrawerHeader(
                 decoration: BoxDecoration(
                   color: Theme.of(context).scaffoldBackgroundColor,
@@ -39,10 +39,24 @@ class AppDrawer extends StatelessWidget {
                   ],
                 ),
               ),
-              // Main navigation items
+              ListTile(
+                leading: const Icon(Icons.language_outlined),
+                title: Text(isEnglish ? 'App Language' : 'Ilova Tili'),
+                trailing: Text(provider.uiLanguage.toUpperCase()),
+                onTap: () {
+                  provider.toggleUiLanguage();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.swap_horiz_outlined),
+                title: Text(provider.direction.replaceAll('_', ' / ')),
+                onTap: () {
+                  provider.toggleDirection();
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.favorite_border),
-                title: const Text('Favourites'),
+                title: Text(isEnglish ? 'Favourites' : 'Sevimlilar'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -52,19 +66,9 @@ class AppDrawer extends StatelessWidget {
                   );
                 },
               ),
-              // Language switcher in the main list
-              ListTile(
-                leading: const Icon(Icons.translate_outlined),
-                title: const Text('Language'),
-                trailing: Text(provider.direction.replaceAll('_', '-')),
-                onTap: () {
-                  provider.toggleDirection();
-                },
-              ),
               const Divider(),
-              // Settings section
               SwitchListTile(
-                title: const Text('Dark Mode'),
+                title: Text(isEnglish ? 'Dark Mode' : 'Tungi Rejim'),
                 value: provider.themeMode == ThemeMode.dark,
                 onChanged: (value) {
                   provider.toggleTheme();
@@ -74,23 +78,39 @@ class AppDrawer extends StatelessWidget {
                     : Icons.light_mode_outlined),
               ),
               SwitchListTile(
-                title: const Text('Advanced Search'),
+                title: Text(
+                    isEnglish ? 'Advanced Search' : 'Kengaytirilgan Qidiruv'),
                 value: provider.isAdvancedSearch,
                 onChanged: (value) {
                   provider.toggleAdvancedSearch();
+                  if (value) {
+                    _showAdvancedSearchInfo(context, isEnglish);
+                  }
                 },
                 secondary: const Icon(Icons.manage_search_outlined),
               ),
               const Divider(),
-              // Games section
-              const ListTile(
-                title: Text('Games',
-                    style: TextStyle(
+              ListTile(
+                title: Text(isEnglish ? 'Games' : 'O\'yinlar',
+                    style: const TextStyle(
                         fontWeight: FontWeight.bold, color: Colors.grey)),
+              ),
+              // Updated game order and names
+              ListTile(
+                leading: const Icon(Icons.grid_on),
+                title: const Text('Fiftinity'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const WordPuzzleScreen()),
+                  );
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.extension_outlined),
-                title: const Text('Guess It'),
+                title: const Text('Worder'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -102,7 +122,7 @@ class AppDrawer extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.gamepad_outlined),
-                title: const Text('Hangman'),
+                title: const Text('The Hangman'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -112,23 +132,10 @@ class AppDrawer extends StatelessWidget {
                   );
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.grid_on),
-                title: const Text('Word Puzzle'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const WordPuzzleScreen()),
-                  );
-                },
-              ),
               const Divider(),
-              // About section at the bottom
               ListTile(
                 leading: const Icon(Icons.info_outline),
-                title: const Text('About'),
+                title: Text(isEnglish ? 'About' : 'Ilova Haqida'),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
@@ -142,6 +149,26 @@ class AppDrawer extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _showAdvancedSearchInfo(BuildContext context, bool isEnglish) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEnglish
+            ? 'Advanced Search Enabled'
+            : 'Kengaytirilgan Qidiruv Yoqildi'),
+        content: Text(isEnglish
+            ? 'Search will now look for your query inside word definitions and example sentences, not just the words themselves.'
+            : 'Qidiruv endi sizning so\'rovingizni faqat so\'zlarning o\'zidan emas, balki ularning izohlari va misol jumlalari ichidan ham izlaydi.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 }

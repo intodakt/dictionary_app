@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/hangman_provider.dart';
+import '../providers/dictionary_provider.dart';
 
 class HangmanScreen extends StatefulWidget {
   const HangmanScreen({super.key});
@@ -40,13 +41,15 @@ class _HangmanScreenState extends State<HangmanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isEnglish =
+        Provider.of<DictionaryProvider>(context).uiLanguage == 'en';
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hangman'),
+        title: const Text('The Hangman'),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),
-            onPressed: () => _showInfoDialog(context),
+            onPressed: () => _showInfoDialog(context, isEnglish),
           ),
         ],
       ),
@@ -68,14 +71,13 @@ class _HangmanScreenState extends State<HangmanScreen> {
                 Column(
                   children: [
                     Text(
-                      'Clue: ${provider.currentWord!.mainTranslationMeaningEng}',
+                      '${isEnglish ? 'Clue' : 'Ipuch'}: ${provider.currentWord!.mainTranslationMeaningEng}',
                       style: Theme.of(context).textTheme.titleMedium,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
                     Text(
                       provider.wordToDisplay,
-                      // Increased font size to make the '_' characters larger
                       style: Theme.of(context)
                           .textTheme
                           .headlineMedium
@@ -84,7 +86,6 @@ class _HangmanScreenState extends State<HangmanScreen> {
                     ),
                   ],
                 ),
-                // Added vertical spacing between the answer and the buttons
                 const SizedBox(height: 24),
                 _buildAlphabetButtons(provider),
               ],
@@ -95,13 +96,14 @@ class _HangmanScreenState extends State<HangmanScreen> {
     );
   }
 
-  void _showInfoDialog(BuildContext context) {
+  void _showInfoDialog(BuildContext context, bool isEnglish) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('How to Play Hangman'),
-        content: const Text(
-            'Save this person from being hanged! A clue is given below. Guess the English word by picking letters. You only have 6 chances before it\'s too late.'),
+        title: Text(isEnglish ? 'How to Play Hangman' : 'O\'ynash Haqida'),
+        content: Text(isEnglish
+            ? 'Save this person from being hanged! A clue is given below. Guess the English word by picking letters. You only have 6 chances before it\'s too late.'
+            : 'Bu odamni xavfdan qutqaring! Quyida sizga so\'z ma\'nosi berilgan. Harflarni tanlab, inglizcha so\'zni toping. Sizda faqat 6 ta imkoniyat bor.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -113,21 +115,25 @@ class _HangmanScreenState extends State<HangmanScreen> {
   }
 
   void _showEndGameDialog(BuildContext context, HangmanProvider provider) {
+    final isEnglish =
+        Provider.of<DictionaryProvider>(context, listen: false).uiLanguage ==
+            'en';
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: Text(provider.gameStatus == HangmanStatus.won
-            ? 'Congratulations!'
-            : 'Game Over'),
-        content: Text('The word was: ${provider.currentWord!.word}'),
+            ? (isEnglish ? 'Congratulations!' : 'Tabriklaymiz!')
+            : (isEnglish ? 'Game Over' : 'O\'yin Tugadi')),
+        content: Text(
+            '${isEnglish ? 'The word was' : 'So\'z'}: ${provider.currentWord!.word}'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.of(dialogContext).pop();
               provider.startNewGame();
             },
-            child: const Text('Play Again'),
+            child: Text(isEnglish ? 'Play Again' : 'Yana O\'ynash'),
           ),
         ],
       ),

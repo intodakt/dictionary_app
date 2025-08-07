@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/word_puzzle_provider.dart';
+import '../providers/dictionary_provider.dart'; // Import DictionaryProvider
 
 class WordPuzzleScreen extends StatefulWidget {
   const WordPuzzleScreen({super.key});
@@ -13,12 +14,9 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
   @override
   void initState() {
     super.initState();
-    // Only show the language selection if a game hasn't been started yet
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<WordPuzzleProvider>(context, listen: false);
-      if (provider.board.every((element) => element == null)) {
-        _showLanguageSelectionDialog(context, provider);
-      }
+      _showLanguageSelectionDialog(
+          context, Provider.of<WordPuzzleProvider>(context, listen: false));
     });
   }
 
@@ -27,9 +25,8 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Word Puzzle'),
+        title: const Text('Fiftinity'),
         actions: [
-          // Added the info button
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () => _showInfoDialog(context),
@@ -62,14 +59,18 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
 
   void _showLanguageSelectionDialog(
       BuildContext context, WordPuzzleProvider provider) {
+    final isEnglish =
+        Provider.of<DictionaryProvider>(context, listen: false).uiLanguage ==
+            'en';
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Choose Language'),
-          content:
-              const Text('Select the language for the words you want to find.'),
+          title: Text(isEnglish ? 'Choose Language' : 'Tilni Tanlang'),
+          content: Text(isEnglish
+              ? 'Select the language for the words you want to find.'
+              : 'Topmoqchi bo\'lgan so\'zlaringiz uchun tilni tanlang.'),
           actions: [
             TextButton(
               onPressed: () {
@@ -91,14 +92,17 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
     );
   }
 
-  // New method for the info dialog
   void _showInfoDialog(BuildContext context) {
+    final isEnglish =
+        Provider.of<DictionaryProvider>(context, listen: false).uiLanguage ==
+            'en';
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('How to Play'),
-        content: const Text(
-            'Slide the tiles to form words from left-to-right, up to the empty space. Valid words of 3 or more letters will earn you points.'),
+        title: Text(isEnglish ? 'How to Play' : 'Qanday O\'ynash Kerak'),
+        content: Text(isEnglish
+            ? 'Slide the tiles to form words from left-to-right, up to the empty space. Valid words of 3 or more letters will earn you points.'
+            : 'Bo\'sh joygacha chapdan o\'ngga so\'zlar hosil qilish uchun plitkalarni suring. 3 yoki undan ortiq harfdan iborat haqiqiy so\'zlar sizga ball keltiradi.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -113,19 +117,21 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12.0),
-        child: Column(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
+            Expanded(
+              child: Text(
+                'Word: ${provider.currentWord}',
+                style: theme.textTheme.titleMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             Text(
-              'Max Score: ${provider.maxScore}',
+              'Max: ${provider.maxScore}',
               style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: theme.colorScheme.primary),
-            ),
-            const Divider(),
-            Text(
-              'Word: ${provider.currentWord}',
-              style: theme.textTheme.titleMedium,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

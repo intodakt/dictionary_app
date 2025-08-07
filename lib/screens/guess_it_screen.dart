@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
+import '../providers/dictionary_provider.dart';
 
 class GuessItScreen extends StatefulWidget {
   const GuessItScreen({super.key});
@@ -13,7 +14,6 @@ class _GuessItScreenState extends State<GuessItScreen> {
   @override
   void initState() {
     super.initState();
-    // Only start a new game if one isn't already in progress
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<GameProvider>(context, listen: false);
       if (provider.currentWord == null) {
@@ -25,13 +25,15 @@ class _GuessItScreenState extends State<GuessItScreen> {
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isEnglish =
+        Provider.of<DictionaryProvider>(context).uiLanguage == 'en';
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Guess It'),
+        title: const Text('Worder'),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),
-            onPressed: () => _showInfoDialog(context),
+            onPressed: () => _showInfoDialog(context, isEnglish),
           ),
         ],
       ),
@@ -63,7 +65,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
                   ],
                 ),
                 _buildLetterButtons(provider),
-                _buildControlButtons(provider),
+                _buildControlButtons(provider, isEnglish),
               ],
             ),
           );
@@ -103,13 +105,14 @@ class _GuessItScreenState extends State<GuessItScreen> {
     );
   }
 
-  void _showInfoDialog(BuildContext context) {
+  void _showInfoDialog(BuildContext context, bool isEnglish) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('How to Play'),
-        content: const Text(
-            'Guess the translation by spelling it out. Earn 10 points for each correct word. Solve 10 words to advance to the next level and earn 10 more hints!'),
+        title: Text(isEnglish ? 'How to Play' : 'Qanday O\'ynash Kerak'),
+        content: Text(isEnglish
+            ? 'Guess the translation by spelling it out. Earn 10 points for each correct word. Solve 10 words to advance to the next level and earn 10 more hints!'
+            : 'Tarjimani harflab yozib toping. Har bir to\'g\'ri so\'z uchun 10 ball oling. Keyingi bosqichga o\'tish va yana 10 ta yordam olish uchun 10 ta so\'zni toping!'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -224,7 +227,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
     );
   }
 
-  Widget _buildControlButtons(GameProvider provider) {
+  Widget _buildControlButtons(GameProvider provider, bool isEnglish) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Row(
@@ -233,21 +236,16 @@ class _GuessItScreenState extends State<GuessItScreen> {
         Expanded(
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  isDark ? const Color(0xFF93C1C1) : Colors.blue.shade50,
-              foregroundColor:
-                  isDark ? Colors.black87 : theme.textTheme.bodyLarge?.color,
               padding: const EdgeInsets.symmetric(vertical: 8.0),
             ),
-            onPressed: () => _showEndGameDialog(context, provider),
-            child: const Column(
+            onPressed: provider.backspace,
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.close),
-                SizedBox(height: 4),
-                Text('End Game',
-                    style: TextStyle(fontSize: 12),
-                    textAlign: TextAlign.center),
+                const Icon(Icons.backspace_outlined),
+                const SizedBox(height: 4),
+                Text(isEnglish ? 'Delete' : 'O\'chirish',
+                    style: const TextStyle(fontSize: 12)),
               ],
             ),
           ),
@@ -264,7 +262,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
               children: [
                 const Icon(Icons.lightbulb_outline),
                 const SizedBox(height: 4),
-                Text('Hint (${provider.hints})',
+                Text('${isEnglish ? 'Hint' : 'Yordam'} (${provider.hints})',
                     style: const TextStyle(fontSize: 12)),
               ],
             ),
@@ -274,15 +272,21 @@ class _GuessItScreenState extends State<GuessItScreen> {
         Expanded(
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
+              backgroundColor:
+                  isDark ? const Color(0xFF93C1C1) : Colors.blue.shade50,
+              foregroundColor:
+                  isDark ? Colors.black87 : theme.textTheme.bodyLarge?.color,
               padding: const EdgeInsets.symmetric(vertical: 8.0),
             ),
-            onPressed: provider.backspace,
-            child: const Column(
+            onPressed: () => _showEndGameDialog(context, provider, isEnglish),
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.backspace_outlined),
-                SizedBox(height: 4),
-                Text('Delete', style: TextStyle(fontSize: 12)),
+                const Icon(Icons.close),
+                const SizedBox(height: 4),
+                Text(isEnglish ? 'End Game' : 'Tugatish',
+                    style: const TextStyle(fontSize: 12),
+                    textAlign: TextAlign.center),
               ],
             ),
           ),
@@ -291,24 +295,26 @@ class _GuessItScreenState extends State<GuessItScreen> {
     );
   }
 
-  void _showEndGameDialog(BuildContext context, GameProvider provider) {
+  void _showEndGameDialog(
+      BuildContext context, GameProvider provider, bool isEnglish) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('End Game?'),
-        content: const Text(
-            'Are you sure you want to end the current game? Your score will be reset.'),
+        title: Text(isEnglish ? 'End Game?' : 'O\'yinni Tugatish?'),
+        content: Text(isEnglish
+            ? 'Are you sure you want to end the current game? Your score will be reset.'
+            : 'Haqiqatan ham joriy o\'yinni tugatmoqchimisiz? Sizning ochkoingiz nolga tenglashtiriladi.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(isEnglish ? 'Cancel' : 'Bekor Qilish'),
           ),
           TextButton(
             onPressed: () {
               provider.endGame();
               Navigator.of(context).pop();
             },
-            child: const Text('End Game'),
+            child: Text(isEnglish ? 'End Game' : 'Tugatish'),
           ),
         ],
       ),

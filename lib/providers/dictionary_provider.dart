@@ -15,6 +15,7 @@ class DictionaryProvider with ChangeNotifier {
   static const String _favoritesKey = 'favorites_ids';
   static const String _themeKey = 'theme_mode';
   static const String _advancedSearchKey = 'advanced_search';
+  static const String _uiLangKey = 'ui_language'; // Key for UI language
 
   // State variables
   String _searchQuery = '';
@@ -28,6 +29,7 @@ class DictionaryProvider with ChangeNotifier {
   int? _expandedHistoryItemId;
   ThemeMode _themeMode = ThemeMode.light;
   bool _isAdvancedSearch = false;
+  String _uiLanguage = 'en'; // Add UI language state
 
   // Getters
   String get searchQuery => _searchQuery;
@@ -41,6 +43,7 @@ class DictionaryProvider with ChangeNotifier {
   int? get expandedHistoryItemId => _expandedHistoryItemId;
   ThemeMode get themeMode => _themeMode;
   bool get isAdvancedSearch => _isAdvancedSearch;
+  String get uiLanguage => _uiLanguage; // Getter for UI language
 
   DictionaryProvider() {
     _initTts();
@@ -59,6 +62,8 @@ class DictionaryProvider with ChangeNotifier {
 
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
+
+    _uiLanguage = prefs.getString(_uiLangKey) ?? 'en';
 
     final savedTheme = prefs.getString(_themeKey);
     if (savedTheme == 'dark') {
@@ -115,6 +120,13 @@ class DictionaryProvider with ChangeNotifier {
         _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeKey, _themeMode.name);
+    notifyListeners();
+  }
+
+  Future<void> toggleUiLanguage() async {
+    _uiLanguage = _uiLanguage == 'en' ? 'uz' : 'en';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_uiLangKey, _uiLanguage);
     notifyListeners();
   }
 

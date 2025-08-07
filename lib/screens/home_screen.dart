@@ -229,8 +229,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHistoryView(DictionaryProvider provider) {
     if (provider.history.isEmpty) {
-      return const Center(
-        child: Text('Your search history will appear here.'),
+      return Center(
+        child: Text(provider.uiLanguage == 'en'
+            ? 'Your search history will appear here.'
+            : 'Sizning qidiruv tarixingiz shu yerda paydo bo\'ladi.'),
       );
     }
     final bottomPadding = MediaQuery.of(context).padding.bottom;
@@ -506,7 +508,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildSection(String title, List<Widget> children) {
+  Widget _buildSection(
+      BuildContext context, String title, List<Widget> children) {
     if (children.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -530,18 +533,30 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFrequencyChart(List<int> frequency) {
+  Widget _buildFrequencyChart(BuildContext context, List<int> frequency) {
+    final isEnglish =
+        Provider.of<DictionaryProvider>(context, listen: false).uiLanguage ==
+            'en';
     final total = frequency.fold(0.0, (sum, item) => sum + item);
     if (total == 0) return const SizedBox.shrink();
 
-    const labels = [
-      "Very Common",
-      "Common",
-      "Moderately Common",
-      "Uncommon",
-      "Rare",
-      "Very Rare"
-    ];
+    final labels = isEnglish
+        ? [
+            "Very Common",
+            "Common",
+            "Moderately Common",
+            "Uncommon",
+            "Rare",
+            "Very Rare"
+          ]
+        : [
+            "Juda Keng Tarqalgan",
+            "Keng Tarqalgan",
+            "O'rtacha Tarqalgan",
+            "Kam Tarqalgan",
+            "Noyob",
+            "Juda Noyob"
+          ];
 
     final colors = [
       Colors.green,
@@ -581,12 +596,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildWordDetailView(
       DictionaryEntry entry, DictionaryProvider provider) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final theme = Theme.of(context);
+    final isEnglish = provider.uiLanguage == 'en';
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + bottomPadding),
       child: Card(
-        // Added the explicit color property
-        color: theme.cardColor,
+        color: Theme.of(context).cardColor,
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         child: Padding(
@@ -636,7 +650,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(
                         fontStyle: FontStyle.italic,
                         color: Colors.grey.shade600)),
-              _buildSection('Main Translation', [
+              _buildSection(
+                  context, isEnglish ? 'Main Translation' : 'Asosiy Tarjima', [
                 Text(entry.mainTranslationWord ?? 'N/A',
                     style: const TextStyle(
                         fontSize: 26,
@@ -646,7 +661,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildMeaningLine('ENG', entry.mainTranslationMeaningEng),
               ]),
               _buildSection(
-                'Other Meanings',
+                context,
+                isEnglish ? 'Other Meanings' : 'Boshqa Ma\'nolar',
                 List.generate(entry.translationWords.length, (i) {
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -669,21 +685,23 @@ class _HomeScreenState extends State<HomeScreen> {
                   );
                 }),
               ),
-              _buildSection('Related Words', [
-                const Text('Synonyms',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+              _buildSection(
+                  context, isEnglish ? 'Related Words' : 'Bog\'liq So\'zlar', [
+                Text(isEnglish ? 'Synonyms' : 'Sinonimlar',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 _buildChipList(entry.synonyms),
                 const SizedBox(height: 12),
-                const Text('Antonyms',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(isEnglish ? 'Antonyms' : 'Antonimlar',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 _buildChipList(entry.antonyms),
               ]),
+              _buildSection(context, isEnglish ? 'Frequency' : 'Takroriylik',
+                  [_buildFrequencyChart(context, entry.frequency)]),
               _buildSection(
-                  'Frequency', [_buildFrequencyChart(entry.frequency)]),
-              _buildSection(
-                'Example Sentences',
+                context,
+                isEnglish ? 'Example Sentences' : 'Misol Jumlalar',
                 entry.exampleSentences
                     .map((ex) => Padding(
                           padding: const EdgeInsets.symmetric(vertical: 6.0),
@@ -708,7 +726,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
                   icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back to History'),
+                  label:
+                      Text(isEnglish ? 'Back to History' : 'Tarixga Qaytish'),
                   onPressed: () => provider.selectWord('', ''),
                 ),
               ),
