@@ -112,7 +112,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
         title: Text(isEnglish ? 'How to Play' : 'Qanday O\'ynash Kerak'),
         content: Text(isEnglish
             ? 'Guess the translation by spelling it out. Earn 10 points for each correct word. Solve 10 words to advance to the next level and earn 10 more hints!'
-            : 'Tarjimani harflab yozib toping. Har bir to\'g\'ri so\'z uchun 10 ochko oling. Keyingi bosqichga o\'tish va yana 10 ta yordam olish uchun 10 ta so\'zni toping!'),
+            : 'Tarjimani harflab yozing. Har bir to\'g\'ri so\'z uchun 10 ball oling. Keyingi bosqichga o\'tish va yana 10 ta yordam olish uchun 10 ta so\'z toping!'),
         actionsPadding:
             const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
@@ -121,7 +121,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               onPressed: () => Navigator.of(context).pop(),
@@ -312,7 +312,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
         title: Text(isEnglish ? 'End Game?' : 'O\'yinni Tugatish?'),
         content: Text(isEnglish
             ? 'Are you sure you want to end the current game? Your score will be reset.'
-            : 'Haqiqatan ham joriy o\'yinni tugatmoqchimisiz? Sizning ochkoingiz nolga tenglashtiriladi.'),
+            : 'Haqiqatan ham joriy o\'yinni tugatmoqchimisiz? Hozirgi yeg\'gan ballaringiz yo\'qoladi.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

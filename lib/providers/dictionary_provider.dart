@@ -17,6 +17,76 @@ class DictionaryProvider with ChangeNotifier {
   static const String _advancedSearchKey = 'advanced_search';
   static const String _uiLangKey = 'ui_language';
 
+  // Russian to Uzbek Cyrillic mapping
+  static const Map<String, String> rusToUz = {
+    "а": "a",
+    "б": "b",
+    "в": "v",
+    "г": "g",
+    "д": "d",
+    "е": "e",
+    "ё": "yo",
+    "ж": "j",
+    "з": "z",
+    "и": "i",
+    "й": "y",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "o",
+    "п": "p",
+    "р": "r",
+    "с": "s",
+    "т": "t",
+    "у": "u",
+    "ф": "f",
+    "х": "x",
+    "ц": "s",
+    "ч": "ch",
+    "ш": "sh",
+    "щ": "sh",
+    "ъ": "ʼ",
+    "ы": "i",
+    "ь": "",
+    "э": "e",
+    "ю": "yu",
+    "я": "ya",
+    "А": "A",
+    "Б": "B",
+    "В": "V",
+    "Г": "G",
+    "Д": "D",
+    "Е": "E",
+    "Ё": "Yo",
+    "Ж": "J",
+    "З": "Z",
+    "И": "I",
+    "Й": "Y",
+    "К": "K",
+    "Л": "L",
+    "М": "M",
+    "Н": "N",
+    "О": "O",
+    "П": "P",
+    "Р": "R",
+    "С": "S",
+    "Т": "T",
+    "У": "U",
+    "Ф": "F",
+    "Х": "X",
+    "Ц": "S",
+    "Ч": "Ch",
+    "Ш": "Sh",
+    "Щ": "Sh",
+    "Ъ": "ʼ",
+    "Ы": "I",
+    "Ь": "",
+    "Э": "E",
+    "Ю": "Yu",
+    "Я": "Ya"
+  };
+
   String _searchQuery = '';
   List<DictionaryEntry> _suggestions = [];
   DictionaryEntry? _selectedWord;
@@ -26,7 +96,7 @@ class DictionaryProvider with ChangeNotifier {
   SearchStatus _searchStatus = SearchStatus.idle;
   bool _isSearchActive = false;
   int? _expandedHistoryItemId;
-  ThemeMode _themeMode = ThemeMode.light;
+  ThemeMode _themeMode;
   bool _isAdvancedSearch = false;
   String _uiLanguage = 'en';
 
@@ -43,13 +113,19 @@ class DictionaryProvider with ChangeNotifier {
   bool get isAdvancedSearch => _isAdvancedSearch;
   String get uiLanguage => _uiLanguage;
 
-  DictionaryProvider() {
+  DictionaryProvider({ThemeMode initialThemeMode = ThemeMode.light})
+      : _themeMode = initialThemeMode {
     _initTts();
     _loadData();
   }
 
   void _initTts() {
     _flutterTts = FlutterTts();
+  }
+
+  Future<void> refreshData() async {
+    await _dbHelper.reinitializeDatabase();
+    await _loadData();
   }
 
   Future<void> speak(String word, String languageCode) async {
@@ -62,14 +138,6 @@ class DictionaryProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
 
     _uiLanguage = prefs.getString(_uiLangKey) ?? 'en';
-
-    final savedTheme = prefs.getString(_themeKey);
-    if (savedTheme == 'dark') {
-      _themeMode = ThemeMode.dark;
-    } else {
-      _themeMode = ThemeMode.light;
-    }
-
     _isAdvancedSearch = prefs.getBool(_advancedSearchKey) ?? false;
 
     final historyIds =
@@ -158,9 +226,21 @@ class DictionaryProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  String _transliterate(String input) {
+    String output = '';
+    for (int i = 0; i < input.length; i++) {
+      output += rusToUz[input[i]] ?? input[i];
+    }
+    return output;
+  }
+
   Future<void> onSearchChanged(String query) async {
-    _searchQuery = query;
-    if (query.isEmpty) {
+    // Transliterate the query before searching
+    final transliteratedQuery = _transliterate(query);
+    final trimmedQuery = transliteratedQuery.trim();
+    _searchQuery = trimmedQuery;
+
+    if (trimmedQuery.isEmpty) {
       _suggestions = [];
       _searchStatus = SearchStatus.idle;
       notifyListeners();
@@ -170,9 +250,9 @@ class DictionaryProvider with ChangeNotifier {
     notifyListeners();
     try {
       if (_isAdvancedSearch) {
-        _suggestions = await _dbHelper.advancedSearch(query, _direction);
+        _suggestions = await _dbHelper.advancedSearch(trimmedQuery, _direction);
       } else {
-        _suggestions = await _dbHelper.searchWord(query, _direction);
+        _suggestions = await _dbHelper.searchWord(trimmedQuery, _direction);
       }
       _searchStatus = _suggestions.isEmpty
           ? SearchStatus.noResults

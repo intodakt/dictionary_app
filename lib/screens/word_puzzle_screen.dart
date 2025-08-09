@@ -111,7 +111,7 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               onPressed: () => Navigator.of(context).pop(),

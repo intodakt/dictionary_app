@@ -6,6 +6,7 @@ import '../screens/about_screen.dart';
 import '../screens/guess_it_screen.dart';
 import '../screens/hangman_screen.dart';
 import '../screens/word_puzzle_screen.dart';
+import '../screens/download_screen.dart'; // Import the new screen
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -18,7 +19,6 @@ class AppDrawer extends StatelessWidget {
         const drawerTextStyle = TextStyle(fontSize: 14);
 
         return Drawer(
-          // Wrap the ListView in a SafeArea widget
           child: SafeArea(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -109,13 +109,9 @@ class AppDrawer extends StatelessWidget {
                 ),
                 const Divider(),
                 ListTile(
-                  title: Text(
-                    isEnglish ? 'Games' : 'O\'yinlar',
-                    style: drawerTextStyle.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                    ),
-                  ),
+                  title: Text(isEnglish ? 'Games' : 'O\'yinlar',
+                      style: drawerTextStyle.copyWith(
+                          fontWeight: FontWeight.bold, color: Colors.grey)),
                 ),
                 ListTile(
                   leading: const Icon(Icons.grid_on),
@@ -154,6 +150,23 @@ class AppDrawer extends StatelessWidget {
                   },
                 ),
                 const Divider(),
+                // Add the new Download page
+                ListTile(
+                  leading: const Icon(Icons.cloud_download_outlined),
+                  title: Text(
+                      isEnglish
+                          ? 'Download Full Version'
+                          : 'To\'liq Versiyani Yuklab Olish',
+                      style: drawerTextStyle),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const DownloadScreen()),
+                    );
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.info_outline),
                   title: Text(isEnglish ? 'About' : 'Ilova Haqida',
@@ -183,8 +196,8 @@ class AppDrawer extends StatelessWidget {
             ? 'Advanced Search Enabled'
             : 'Kengaytirilgan Qidiruv Yoqildi'),
         content: Text(isEnglish
-            ? 'Search will now look for your query inside word definitions and example sentences, not just the words themselves.'
-            : 'Qidiruv endi sizning so\'rovingizni faqat so\'zlarning o\'zida emas, balki ularning izohlari va misol jumlalari ichida ham izlaydi.'),
+            ? 'Search will now look for your query inside word definitions and example sentences, not just the words themselves. Slower than normal search.'
+            : 'Qidiruv faqat so\'zlarning o\'zida emas, balki ularning izohlari va misol jumlalari ichida ham izlaydi. Odadiy qidiruvdan sekinroq ishlaydi'),
         actionsPadding:
             const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
@@ -193,7 +206,7 @@ class AppDrawer extends StatelessWidget {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               onPressed: () => Navigator.of(context).pop(),

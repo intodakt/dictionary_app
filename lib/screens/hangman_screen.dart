@@ -104,7 +104,7 @@ class _HangmanScreenState extends State<HangmanScreen> {
             Text(isEnglish ? 'How to Play Hangman' : 'Qanday O\'ynash Kerak'),
         content: Text(isEnglish
             ? 'Save this person from being hanged! A clue is given below. Guess the English word by picking letters. You only have 6 chances before it\'s too late.'
-            : 'Bu odamni osilishdan qutqaring! Quyida sizga bir ipuch berilgan. Harflarni tanlab, inglizcha so\'zni toping. Kech bo\'lmasidan oldin sizda faqat 6 ta imkoniyat bor.'),
+            : 'Bu odamni xavfdan qutqaring! Quyida sizga bir so\'z izohi berilgan. Harflarni tanlab, inglizcha so\'zni toping. Faqat 6 ta imkoniyatingiz bor.'),
         actionsPadding:
             const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
@@ -113,7 +113,7 @@ class _HangmanScreenState extends State<HangmanScreen> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(20),
                 ),
               ),
               onPressed: () => Navigator.of(context).pop(),

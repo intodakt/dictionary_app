@@ -1,33 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/dictionary_provider.dart';
 import 'providers/game_provider.dart';
 import 'providers/hangman_provider.dart';
-import 'providers/word_puzzle_provider.dart'; // Import the new provider
+import 'providers/word_puzzle_provider.dart';
+import 'providers/download_provider.dart';
 import 'screens/home_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  runApp(const MyApp());
+
+  final prefs = await SharedPreferences.getInstance();
+  final savedTheme = prefs.getString('theme_mode');
+  final initialThemeMode =
+      savedTheme == 'dark' ? ThemeMode.dark : ThemeMode.light;
+
+  runApp(MyApp(initialThemeMode: initialThemeMode));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final ThemeMode initialThemeMode;
+  const MyApp({super.key, required this.initialThemeMode});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (context) => DictionaryProvider()),
+        ChangeNotifierProvider(
+          create: (context) =>
+              DictionaryProvider(initialThemeMode: initialThemeMode),
+        ),
         ChangeNotifierProvider(create: (context) => GameProvider()),
         ChangeNotifierProvider(create: (context) => HangmanProvider()),
-        ChangeNotifierProvider(
-            create: (context) => WordPuzzleProvider()), // Add the new provider
+        ChangeNotifierProvider(create: (context) => WordPuzzleProvider()),
+        ChangeNotifierProvider(create: (context) => DownloadProvider()),
       ],
       child: Consumer<DictionaryProvider>(
         builder: (context, provider, child) {

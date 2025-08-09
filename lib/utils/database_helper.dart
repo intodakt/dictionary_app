@@ -15,41 +15,55 @@ class DatabaseHelper {
   static Database? _database;
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDatabase();
+    _database ??= await _initDatabase();
     return _database!;
+  }
+
+  // New method to close the current DB connection and force re-initialization
+  Future<void> reinitializeDatabase() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+    // The next call to the `database` getter will now run _initDatabase() again
   }
 
   Future<Database> _initDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
-    String path = join(documentsDirectory.path, 'dictionary.db');
 
-    bool dbExists = await databaseExists(path);
+    final String fullDbPath =
+        join(documentsDirectory.path, 'dictionary_full.db');
+    final String liteDbPath = join(documentsDirectory.path, 'dictionary.db');
 
-    if (!dbExists) {
+    if (await databaseExists(fullDbPath)) {
+      if (kDebugMode) {
+        print("DB_HELPER: Full database found. Opening...");
+      }
+      return await openDatabase(fullDbPath, readOnly: true);
+    }
+
+    if (!await databaseExists(liteDbPath)) {
+      if (kDebugMode) {
+        print("DB_HELPER: Lite database not found. Copying from assets...");
+      }
       try {
-        await Directory(dirname(path)).create(recursive: true);
+        await Directory(dirname(liteDbPath)).create(recursive: true);
         ByteData data = await rootBundle.load(join('assets', 'dictionary.db'));
         List<int> bytes =
             data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-        await File(path).writeAsBytes(bytes, flush: true);
+        await File(liteDbPath).writeAsBytes(bytes, flush: true);
       } catch (e) {
         if (kDebugMode) {
-          print("DB_HELPER: FATAL ERROR copying database: $e");
+          debugPrint("DB_HELPER: FATAL ERROR copying database: $e");
         }
         rethrow;
       }
     }
 
-    try {
-      return await openDatabase(path, readOnly: true);
-    } catch (e) {
-      if (kDebugMode) {
-        print(
-            "DB_HELPER: FATAL ERROR opening database. It might be corrupt. Error: $e");
-      }
-      rethrow;
+    if (kDebugMode) {
+      print("DB_HELPER: Opening lite database.");
     }
+    return await openDatabase(liteDbPath, readOnly: true);
   }
 
   Future<bool> isWordValid(String word, String direction) async {
@@ -108,7 +122,9 @@ class DatabaseHelper {
     final random = Random();
 
     int wordLength = level + 3;
-    if (wordLength > 10) wordLength = 10;
+    if (wordLength > 10) {
+      wordLength = 10;
+    }
 
     int frequencyThreshold = level < 6 ? 70 : 40;
     String lengthCondition = level < 6 ? '= $wordLength' : '<= 10';
@@ -191,12 +207,14 @@ class DatabaseHelper {
       String query, String direction) async {
     if (query.isEmpty) return [];
     final db = await database;
+
     final List<Map<String, dynamic>> maps = await db.query(
       'dictionary',
       where: 'word LIKE ? AND direction = ?',
       whereArgs: ['$query%', direction],
       limit: 20,
     );
+
     if (maps.isNotEmpty) {
       return maps.map((map) => DictionaryEntry.fromMap(map)).toList();
     }
@@ -208,6 +226,7 @@ class DatabaseHelper {
     if (query.isEmpty) return [];
     final db = await database;
     final wildQuery = '%$query%';
+
     final List<Map<String, dynamic>> maps = await db.query(
       'dictionary',
       where: '''
@@ -234,6 +253,7 @@ class DatabaseHelper {
       ],
       limit: 50,
     );
+
     if (maps.isNotEmpty) {
       return maps.map((map) => DictionaryEntry.fromMap(map)).toList();
     }
