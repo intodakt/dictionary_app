@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../models/dictionary_entry.dart';
@@ -99,6 +100,7 @@ class DictionaryProvider with ChangeNotifier {
   ThemeMode _themeMode;
   bool _isAdvancedSearch = false;
   String _uiLanguage = 'en';
+  bool _isRefreshing = false;
 
   String get searchQuery => _searchQuery;
   List<DictionaryEntry> get suggestions => _suggestions;
@@ -112,6 +114,7 @@ class DictionaryProvider with ChangeNotifier {
   ThemeMode get themeMode => _themeMode;
   bool get isAdvancedSearch => _isAdvancedSearch;
   String get uiLanguage => _uiLanguage;
+  bool get isRefreshing => _isRefreshing;
 
   DictionaryProvider({ThemeMode initialThemeMode = ThemeMode.light})
       : _themeMode = initialThemeMode {
@@ -124,57 +127,93 @@ class DictionaryProvider with ChangeNotifier {
   }
 
   Future<void> refreshData() async {
-    await _dbHelper.reinitializeDatabase();
-    await _loadData();
+    _isRefreshing = true;
+    notifyListeners();
+
+    try {
+      await _dbHelper.reinitializeDatabase();
+      await _loadData();
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: Error refreshing data: $e");
+      }
+    } finally {
+      _isRefreshing = false;
+      notifyListeners();
+    }
   }
 
   Future<void> speak(String word, String languageCode) async {
-    await _flutterTts.setLanguage(languageCode);
-    await _flutterTts.setPitch(1.0);
-    await _flutterTts.speak(word);
+    try {
+      await _flutterTts.setLanguage(languageCode);
+      await _flutterTts.setPitch(1.0);
+      await _flutterTts.speak(word);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: TTS error: $e");
+      }
+    }
   }
 
   Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final prefs = await SharedPreferences.getInstance();
 
-    _uiLanguage = prefs.getString(_uiLangKey) ?? 'en';
-    _isAdvancedSearch = prefs.getBool(_advancedSearchKey) ?? false;
+      _uiLanguage = prefs.getString(_uiLangKey) ?? 'en';
+      _isAdvancedSearch = prefs.getBool(_advancedSearchKey) ?? false;
 
-    final historyIds =
-        prefs.getStringList(_historyKey)?.map(int.parse).toList() ?? [];
-    if (historyIds.isNotEmpty) {
-      _history = await _dbHelper.getWordsByIds(historyIds);
-      _history.sort((a, b) =>
-          historyIds.indexOf(a.id).compareTo(historyIds.indexOf(b.id)));
-    }
+      final historyIds =
+          prefs.getStringList(_historyKey)?.map(int.parse).toList() ?? [];
+      if (historyIds.isNotEmpty) {
+        _history = await _dbHelper.getWordsByIds(historyIds);
+        _history.sort((a, b) =>
+            historyIds.indexOf(a.id).compareTo(historyIds.indexOf(b.id)));
+      }
 
-    final favoriteIds =
-        prefs.getStringList(_favoritesKey)?.map(int.parse).toList() ?? [];
-    if (favoriteIds.isNotEmpty) {
-      _favorites = await _dbHelper.getWordsByIds(favoriteIds);
-      final favoriteIdSet = favoriteIds.toSet();
-      for (var word in _history) {
-        if (favoriteIdSet.contains(word.id)) {
-          word.isFavorite = true;
+      final favoriteIds =
+          prefs.getStringList(_favoritesKey)?.map(int.parse).toList() ?? [];
+      if (favoriteIds.isNotEmpty) {
+        _favorites = await _dbHelper.getWordsByIds(favoriteIds);
+        final favoriteIdSet = favoriteIds.toSet();
+        for (var word in _history) {
+          if (favoriteIdSet.contains(word.id)) {
+            word.isFavorite = true;
+          }
+        }
+        for (var fav in _favorites) {
+          fav.isFavorite = true;
         }
       }
-      for (var fav in _favorites) {
-        fav.isFavorite = true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: Error loading data: $e");
       }
     }
     notifyListeners();
   }
 
   Future<void> _saveHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final ids = _history.map((e) => e.id.toString()).toList();
-    await prefs.setStringList(_historyKey, ids);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids = _history.map((e) => e.id.toString()).toList();
+      await prefs.setStringList(_historyKey, ids);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: Error saving history: $e");
+      }
+    }
   }
 
   Future<void> _saveFavorites() async {
-    final prefs = await SharedPreferences.getInstance();
-    final ids = _favorites.map((e) => e.id.toString()).toList();
-    await prefs.setStringList(_favoritesKey, ids);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final ids = _favorites.map((e) => e.id.toString()).toList();
+      await prefs.setStringList(_favoritesKey, ids);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: Error saving favorites: $e");
+      }
+    }
   }
 
   Future<void> deleteFromHistory(DictionaryEntry entry) async {
@@ -235,7 +274,9 @@ class DictionaryProvider with ChangeNotifier {
   }
 
   Future<void> onSearchChanged(String query) async {
-    // Transliterate the query before searching
+    // Prevent search operations during refresh
+    if (_isRefreshing) return;
+
     final transliteratedQuery = _transliterate(query);
     final trimmedQuery = transliteratedQuery.trim();
     _searchQuery = trimmedQuery;
@@ -246,8 +287,10 @@ class DictionaryProvider with ChangeNotifier {
       notifyListeners();
       return;
     }
+
     _searchStatus = SearchStatus.searching;
     notifyListeners();
+
     try {
       if (_isAdvancedSearch) {
         _suggestions = await _dbHelper.advancedSearch(trimmedQuery, _direction);
@@ -258,6 +301,9 @@ class DictionaryProvider with ChangeNotifier {
           ? SearchStatus.noResults
           : SearchStatus.resultsFound;
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: Search error: $e");
+      }
       _searchStatus = SearchStatus.error;
     }
     notifyListeners();
@@ -276,7 +322,9 @@ class DictionaryProvider with ChangeNotifier {
         await _saveHistory();
       }
     } catch (e) {
-      // In a real app, you would use a logging package here
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: Error selecting word from search: $e");
+      }
     }
     notifyListeners();
   }
@@ -294,7 +342,9 @@ class DictionaryProvider with ChangeNotifier {
         _selectedWord = details;
       }
     } catch (e) {
-      // In a real app, you would use a logging package here
+      if (kDebugMode) {
+        debugPrint("DICTIONARY_PROVIDER: Error selecting word: $e");
+      }
     }
     notifyListeners();
   }

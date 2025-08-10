@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../providers/dictionary_provider.dart';
+import '../providers/download_provider.dart';
 import '../models/dictionary_entry.dart';
 import '../widgets/app_drawer.dart';
 
@@ -23,8 +24,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<DictionaryProvider>(
-      builder: (context, provider, child) {
+    return Consumer2<DictionaryProvider, DownloadProvider>(
+      builder: (context, provider, downloadProvider, child) {
         return PopScope(
           canPop: provider.selectedWord == null,
           onPopInvoked: (bool didPop) {
@@ -36,24 +37,30 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
           child: Scaffold(
-            appBar: _buildAppBar(provider),
+            appBar: _buildAppBar(provider, downloadProvider),
             drawer: const AppDrawer(),
-            body: _buildBody(provider),
+            body: _buildBody(provider, downloadProvider),
           ),
         );
       },
     );
   }
 
-  AppBar _buildAppBar(DictionaryProvider provider) {
+  AppBar _buildAppBar(
+      DictionaryProvider provider, DownloadProvider downloadProvider) {
     final theme = Theme.of(context);
+    final isDownloading = downloadProvider.status == DownloadStatus.downloading;
+    final isDownloadSuccess = downloadProvider.status == DownloadStatus.success;
+    final isRefreshing = provider.isRefreshing;
+    final isBlocked = isDownloading || isDownloadSuccess || isRefreshing;
+
     return AppBar(
       title: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         transitionBuilder: (Widget child, Animation<double> animation) {
           return FadeTransition(
             opacity: animation,
-            child: ScaleTransition(scale: animation, child: child),
+            child: ScaleTransition(child: child, scale: animation),
           );
         },
         child: provider.isSearchActive
@@ -61,23 +68,37 @@ class _HomeScreenState extends State<HomeScreen> {
                 key: const ValueKey('searchField'),
                 controller: _searchController,
                 autofocus: true,
+                enabled: !isBlocked,
                 decoration: InputDecoration(
                   hintText: provider.isAdvancedSearch
                       ? 'Advanced Search...'
                       : 'Search...',
                   border: InputBorder.none,
+                  hintStyle: TextStyle(
+                    color: isBlocked ? theme.disabledColor : theme.hintColor,
+                  ),
                 ),
-                onChanged: provider.onSearchChanged,
+                style: TextStyle(
+                  color: isBlocked
+                      ? theme.disabledColor
+                      : theme.textTheme.bodyLarge?.color,
+                ),
+                onChanged: (query) {
+                  if (!isBlocked) {
+                    provider.onSearchChanged(query);
+                  }
+                },
               )
             : GestureDetector(
                 key: const ValueKey('langSwitcher'),
-                onTap: provider.toggleDirection,
+                onTap: isBlocked ? null : provider.toggleDirection,
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary
-                        .withAlpha((0.1 * 255).toInt()),
+                    color: isBlocked
+                        ? theme.disabledColor.withOpacity(0.1)
+                        : theme.colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(30),
                   ),
                   child: Row(
@@ -87,23 +108,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         provider.direction.split('_')[0],
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
+                          color: isBlocked
+                              ? theme.disabledColor
+                              : theme.colorScheme.primary,
                           fontSize: 14,
                         ),
                       ),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4.0),
                         child: Icon(
-                          Icons.cached, // Changed icon
+                          Icons.cached,
                           size: 20,
-                          color: theme.colorScheme.primary,
+                          color: isBlocked
+                              ? theme.disabledColor
+                              : theme.colorScheme.primary,
                         ),
                       ),
                       Text(
                         provider.direction.split('_')[1],
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
+                          color: isBlocked
+                              ? theme.disabledColor
+                              : theme.colorScheme.primary,
                           fontSize: 14,
                         ),
                       ),
@@ -114,20 +141,52 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       centerTitle: true,
       actions: [
+        if (isDownloading || isDownloadSuccess || isRefreshing)
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  value: isDownloading ? downloadProvider.progress : null,
+                ),
+              ),
+            ),
+          ),
         IconButton(
           icon: Icon(provider.isSearchActive ? Icons.close : Icons.search),
-          onPressed: () {
-            provider.setSearchActive(!provider.isSearchActive);
-            if (!provider.isSearchActive) {
-              _searchController.clear();
-            }
-          },
+          onPressed: isBlocked
+              ? null
+              : () {
+                  provider.setSearchActive(!provider.isSearchActive);
+                  if (!provider.isSearchActive) {
+                    _searchController.clear();
+                  }
+                },
         ),
       ],
     );
   }
 
-  Widget _buildBody(DictionaryProvider provider) {
+  Widget _buildBody(
+      DictionaryProvider provider, DownloadProvider downloadProvider) {
+    // Show download progress overlay if downloading
+    if (downloadProvider.status == DownloadStatus.downloading) {
+      return _buildDownloadProgressView(downloadProvider);
+    }
+
+    // Show success message briefly
+    if (downloadProvider.status == DownloadStatus.success) {
+      return _buildDownloadSuccessView();
+    }
+
+    // Show error if download failed
+    if (downloadProvider.status == DownloadStatus.error) {
+      return _buildDownloadErrorView(downloadProvider);
+    }
+
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: provider.isSearchActive
@@ -135,6 +194,119 @@ class _HomeScreenState extends State<HomeScreen> {
           : (provider.selectedWord != null
               ? _buildWordDetailView(provider.selectedWord!, provider)
               : _buildHistoryView(provider)),
+    );
+  }
+
+  Widget _buildDownloadProgressView(DownloadProvider downloadProvider) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.download,
+              size: 64,
+              color: Colors.blue,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Downloading Full Database...',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: downloadProvider.progress,
+              backgroundColor: Colors.grey.shade300,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${(downloadProvider.progress * 100).toStringAsFixed(1)}%',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Please wait... App functionality is disabled during download.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadSuccessView() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.check_circle,
+              size: 64,
+              color: Colors.green,
+            ),
+            SizedBox(height: 24),
+            Text(
+              'Download Complete!',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Initializing full database...',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
+            ),
+            SizedBox(height: 16),
+            CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDownloadErrorView(DownloadProvider downloadProvider) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error,
+              size: 64,
+              color: Colors.red,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Download Failed',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            if (downloadProvider.errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 16.0),
+                child: Text(
+                  downloadProvider.errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ),
+            ElevatedButton(
+              onPressed: () => downloadProvider.retryDownload(),
+              child: const Text('Retry Download'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => downloadProvider.resetStatus(),
+              child: const Text('Continue with Lite Version'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -195,6 +367,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (provider.searchStatus == SearchStatus.noResults) {
       return const Center(child: Text('No results found.'));
+    }
+    if (provider.searchStatus == SearchStatus.error) {
+      return const Center(
+          child: Text('Search error occurred. Please try again.'));
     }
     return AnimationLimiter(
       child: ListView.builder(
@@ -283,7 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(15),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha((0.08 * 255).toInt()),
+                color: Colors.black.withOpacity(0.08),
                 spreadRadius: 1,
                 blurRadius: 4,
                 offset: const Offset(0, 2),
@@ -319,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha((0.08 * 255).toInt()),
+              color: Colors.black.withOpacity(0.08),
               spreadRadius: 1,
               blurRadius: 4,
               offset: const Offset(0, 2),
@@ -527,9 +703,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildChipList(List<String> words) {
-    if (words.isEmpty) {
+    if (words.isEmpty)
       return const Text('N/A', style: TextStyle(fontStyle: FontStyle.italic));
-    }
     return Wrap(
       spacing: 8.0,
       runSpacing: 4.0,

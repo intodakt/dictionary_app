@@ -19,13 +19,14 @@ class DatabaseHelper {
     return _database!;
   }
 
-  // New method to close the current DB connection and force re-initialization
   Future<void> reinitializeDatabase() async {
     if (_database != null) {
       await _database!.close();
       _database = null;
     }
-    // The next call to the `database` getter will now run _initDatabase() again
+    if (kDebugMode) {
+      print("DB_HELPER: Database reinitialized");
+    }
   }
 
   Future<Database> _initDatabase() async {
@@ -35,13 +36,42 @@ class DatabaseHelper {
         join(documentsDirectory.path, 'dictionary_full.db');
     final String liteDbPath = join(documentsDirectory.path, 'dictionary.db');
 
+    // Check for full database first
     if (await databaseExists(fullDbPath)) {
-      if (kDebugMode) {
-        print("DB_HELPER: Full database found. Opening...");
+      try {
+        // Verify the file is not corrupted before opening
+        final file = File(fullDbPath);
+        final stat = await file.stat();
+        if (stat.size > 1000000) {
+          // At least 1MB
+          if (kDebugMode) {
+            print(
+                "DB_HELPER: Full database file exists and appears valid. Opening...");
+          }
+          final db = await openDatabase(fullDbPath, readOnly: true);
+          // Test the database by running a simple query
+          await db.rawQuery('SELECT COUNT(*) FROM dictionary LIMIT 1');
+          return db;
+        } else {
+          if (kDebugMode) {
+            print(
+                "DB_HELPER: Full database file exists but appears corrupted. Deleting...");
+          }
+          await file.delete();
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print(
+              "DB_HELPER: Error opening full database: $e. Falling back to lite version.");
+        }
+        // Delete corrupted full database
+        try {
+          await File(fullDbPath).delete();
+        } catch (_) {}
       }
-      return await openDatabase(fullDbPath, readOnly: true);
     }
 
+    // Fallback to lite database
     if (!await databaseExists(liteDbPath)) {
       if (kDebugMode) {
         print("DB_HELPER: Lite database not found. Copying from assets...");
@@ -52,6 +82,9 @@ class DatabaseHelper {
         List<int> bytes =
             data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
         await File(liteDbPath).writeAsBytes(bytes, flush: true);
+        if (kDebugMode) {
+          print("DB_HELPER: Successfully copied lite database from assets.");
+        }
       } catch (e) {
         if (kDebugMode) {
           debugPrint("DB_HELPER: FATAL ERROR copying database: $e");

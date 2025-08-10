@@ -39,7 +39,21 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => GameProvider()),
         ChangeNotifierProvider(create: (context) => HangmanProvider()),
         ChangeNotifierProvider(create: (context) => WordPuzzleProvider()),
-        ChangeNotifierProvider(create: (context) => DownloadProvider()),
+        // Fixed provider dependency setup
+        ChangeNotifierProxyProvider<DictionaryProvider, DownloadProvider>(
+          create: (context) {
+            final dictionaryProvider =
+                Provider.of<DictionaryProvider>(context, listen: false);
+            return DownloadProvider(dictionaryProvider);
+          },
+          update: (context, dictionaryProvider, previousDownloadProvider) {
+            // Reuse the existing provider if possible to maintain state
+            if (previousDownloadProvider != null) {
+              return previousDownloadProvider;
+            }
+            return DownloadProvider(dictionaryProvider);
+          },
+        ),
       ],
       child: Consumer<DictionaryProvider>(
         builder: (context, provider, child) {

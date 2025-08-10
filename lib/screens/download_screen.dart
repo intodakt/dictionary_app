@@ -34,8 +34,8 @@ class DownloadScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               isEnglish
-                  ? 'The current version of the dictionary contains a lightweight, optimized dataset. By downloading the full version, you will get access to over 150,000 words for a more comprehensive experience.'
-                  : 'Lug\'atning joriy versiyasi yengil, optimallashtirilgan ma\'lumotlar to\'plamini o\'z ichiga oladi. To\'liq versiyani yuklab olish orqali siz 150,000 dan ortiq so\'zlar bazasiga ega bo\'lasiz.',
+                  ? 'The current version of the dictionary contains a lightweight, optimized dataset. By downloading the full version, you will get access to all 1.5 million words for a more comprehensive experience.'
+                  : 'Lug\'atning joriy versiyasi yengil, optimallashtirilgan ma\'lumotlar to\'plamini o\'z ichiga oladi. To\'liq versiyani yuklab olish orqali siz yanada kengroq tajriba uchun barcha 1,5 million so\'zga kirish huquqiga ega bo\'lasiz.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16),
             ),
@@ -62,13 +62,29 @@ class DownloadScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                     );
                   case DownloadStatus.alreadyExists:
-                    return Text(
-                      isEnglish
-                          ? 'The full version is already downloaded.'
-                          : 'To\'liq versiya allaqachon yuklab olingan.',
-                      style: const TextStyle(
-                          color: Colors.blue, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+                    return Column(
+                      children: [
+                        Text(
+                          isEnglish
+                              ? 'The full version is already downloaded.'
+                              : 'To\'liq versiya allaqachon yuklab olingan.',
+                          style: const TextStyle(
+                              color: Colors.blue, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton.icon(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
+                          label: Text(
+                              isEnglish
+                                  ? 'Delete Full Version'
+                                  : 'To\'liq Versiyani O\'chirish',
+                              style: const TextStyle(color: Colors.red)),
+                          onPressed: () => _showDeleteConfirmation(
+                              context, provider, isEnglish),
+                        ),
+                      ],
                     );
                   case DownloadStatus.error:
                     return Text(
@@ -93,6 +109,39 @@ class DownloadScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showDeleteConfirmation(
+      BuildContext context, DownloadProvider downloadProvider, bool isEnglish) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(isEnglish
+              ? 'Delete Full Database?'
+              : 'To\'liq Ma\'lumotlar Bazasini O\'chirish?'),
+          content: Text(isEnglish
+              ? 'This will remove the downloaded database and switch back to the lite version.'
+              : 'Bu yuklab olingan ma\'lumotlar bazasini o\'chiradi va yengil versiyasiga qaytadi.'),
+          actions: [
+            TextButton(
+              child: Text(isEnglish ? 'Cancel' : 'Bekor qilish'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: Text(
+                isEnglish ? 'Delete' : 'O\'chirish',
+                style: const TextStyle(color: Colors.red),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                downloadProvider.deleteFullDatabase();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
