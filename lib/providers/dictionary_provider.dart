@@ -1,287 +1,171 @@
-import 'package:flutter/material.dart';
+// UPDATE 14
+// lib/providers/dictionary_provider.dart
+import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/dictionary_entry.dart';
+import '../models/search_result.dart';
 import '../utils/database_helper.dart';
 
-enum SearchStatus { idle, searching, resultsFound, noResults, error }
-
-enum TtsState { playing, stopped, paused, continued }
+enum SearchStatus { idle, searching, noResults, resultsFound, error }
 
 class DictionaryProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper();
-  late FlutterTts _flutterTts;
-  static const String _historyKey = 'history_ids';
-  static const String _favoritesKey = 'favorites_ids';
-  static const String _themeKey = 'theme_mode';
-  static const String _advancedSearchKey = 'advanced_search';
-  static const String _uiLangKey = 'ui_language';
+  final FlutterTts _flutterTts = FlutterTts();
 
-  // Russian to Uzbek Cyrillic mapping
-  static const Map<String, String> rusToUz = {
-    "а": "a",
-    "б": "b",
-    "в": "v",
-    "г": "g",
-    "д": "d",
-    "е": "e",
-    "ё": "yo",
-    "ж": "j",
-    "з": "z",
-    "и": "i",
-    "й": "y",
-    "к": "k",
-    "л": "l",
-    "м": "m",
-    "н": "n",
-    "о": "o",
-    "п": "p",
-    "р": "r",
-    "с": "s",
-    "т": "t",
-    "у": "u",
-    "ф": "f",
-    "х": "x",
-    "ц": "s",
-    "ч": "ch",
-    "ш": "sh",
-    "щ": "sh",
-    "ъ": "ʼ",
-    "ы": "i",
-    "ь": "",
-    "э": "e",
-    "ю": "yu",
-    "я": "ya",
-    "А": "A",
-    "Б": "B",
-    "В": "V",
-    "Г": "G",
-    "Д": "D",
-    "Е": "E",
-    "Ё": "Yo",
-    "Ж": "J",
-    "З": "Z",
-    "И": "I",
-    "Й": "Y",
-    "К": "K",
-    "Л": "L",
-    "М": "M",
-    "Н": "N",
-    "О": "O",
-    "П": "P",
-    "Р": "R",
-    "С": "S",
-    "Т": "T",
-    "У": "U",
-    "Ф": "F",
-    "Х": "X",
-    "Ц": "S",
-    "Ч": "Ch",
-    "Ш": "Sh",
-    "Щ": "Sh",
-    "Ъ": "ʼ",
-    "Ы": "I",
-    "Ь": "",
-    "Э": "E",
-    "Ю": "Yu",
-    "Я": "Ya"
-  };
-
-  String _searchQuery = '';
-  List<DictionaryEntry> _suggestions = [];
-  DictionaryEntry? _selectedWord;
-  List<DictionaryEntry> _history = [];
-  List<DictionaryEntry> _favorites = [];
   String _direction = 'ENG_UZB';
-  SearchStatus _searchStatus = SearchStatus.idle;
-  bool _isSearchActive = false;
-  int? _expandedHistoryItemId;
-  ThemeMode _themeMode;
-  bool _isAdvancedSearch = false;
   String _uiLanguage = 'en';
+
+  List<SearchResult> _suggestions = [];
+  DictionaryEntry? _selectedWord;
+
+  List<int> _historyIds = [];
+  List<int> _favoriteIds = [];
+  final Map<int, DictionaryEntry> _historyCache = {};
+
+  bool _isSearchActive = false;
+  bool _isAdvancedSearch = false;
+  String _searchQuery = '';
+  SearchStatus _searchStatus = SearchStatus.idle;
+  int? _expandedHistoryItemId;
   bool _isRefreshing = false;
 
-  String get searchQuery => _searchQuery;
-  List<DictionaryEntry> get suggestions => _suggestions;
-  DictionaryEntry? get selectedWord => _selectedWord;
-  List<DictionaryEntry> get history => _history;
-  List<DictionaryEntry> get favorites => _favorites;
+  Timer? _searchTimer;
+  static const Duration _searchDelay = Duration(milliseconds: 300);
+
   String get direction => _direction;
-  SearchStatus get searchStatus => _searchStatus;
-  bool get isSearchActive => _isSearchActive;
-  int? get expandedHistoryItemId => _expandedHistoryItemId;
-  ThemeMode get themeMode => _themeMode;
-  bool get isAdvancedSearch => _isAdvancedSearch;
   String get uiLanguage => _uiLanguage;
+  List<SearchResult> get suggestions => _suggestions;
+  DictionaryEntry? get selectedWord => _selectedWord;
+
+  List<int> get historyIds => _historyIds;
+  List<int> get favoriteIds => _favoriteIds;
+
+  bool get isSearchActive => _isSearchActive;
+  bool get isAdvancedSearch => _isAdvancedSearch;
+  String get searchQuery => _searchQuery;
+  SearchStatus get searchStatus => _searchStatus;
+  int? get expandedHistoryItemId => _expandedHistoryItemId;
   bool get isRefreshing => _isRefreshing;
 
-  DictionaryProvider({ThemeMode initialThemeMode = ThemeMode.light})
-      : _themeMode = initialThemeMode {
-    _initTts();
-    _loadData();
+  DictionaryProvider();
+
+  Future<void> init() async {
+    await _loadSettings();
+    _setupTts();
   }
 
-  void _initTts() {
-    _flutterTts = FlutterTts();
+  void _setupTts() {
+    _flutterTts.setSharedInstance(true);
+    _flutterTts.setIosAudioCategory(
+        IosTextToSpeechAudioCategory.playback,
+        [
+          IosTextToSpeechAudioCategoryOptions.allowBluetooth,
+          IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
+          IosTextToSpeechAudioCategoryOptions.mixWithOthers
+        ],
+        IosTextToSpeechAudioMode.voicePrompt);
   }
 
-  Future<void> refreshData() async {
-    _isRefreshing = true;
-    notifyListeners();
-
-    try {
-      await _dbHelper.reinitializeDatabase();
-      await _loadData();
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: Error refreshing data: $e");
-      }
-    } finally {
-      _isRefreshing = false;
-      notifyListeners();
-    }
+  Future<void> speak(String text, String langCode) async {
+    await _flutterTts.setLanguage(langCode);
+    await _flutterTts.speak(text);
   }
 
-  Future<void> speak(String word, String languageCode) async {
-    try {
-      await _flutterTts.setLanguage(languageCode);
-      await _flutterTts.setPitch(1.0);
-      await _flutterTts.speak(word);
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: TTS error: $e");
-      }
-    }
-  }
-
-  Future<void> _loadData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      _uiLanguage = prefs.getString(_uiLangKey) ?? 'en';
-      _isAdvancedSearch = prefs.getBool(_advancedSearchKey) ?? false;
-
-      final historyIds =
-          prefs.getStringList(_historyKey)?.map(int.parse).toList() ?? [];
-      if (historyIds.isNotEmpty) {
-        _history = await _dbHelper.getWordsByIds(historyIds);
-        _history.sort((a, b) =>
-            historyIds.indexOf(a.id).compareTo(historyIds.indexOf(b.id)));
-      }
-
-      final favoriteIds =
-          prefs.getStringList(_favoritesKey)?.map(int.parse).toList() ?? [];
-      if (favoriteIds.isNotEmpty) {
-        _favorites = await _dbHelper.getWordsByIds(favoriteIds);
-        final favoriteIdSet = favoriteIds.toSet();
-        for (var word in _history) {
-          if (favoriteIdSet.contains(word.id)) {
-            word.isFavorite = true;
-          }
-        }
-        for (var fav in _favorites) {
-          fav.isFavorite = true;
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: Error loading data: $e");
-      }
-    }
-    notifyListeners();
-  }
-
-  Future<void> _saveHistory() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final ids = _history.map((e) => e.id.toString()).toList();
-      await prefs.setStringList(_historyKey, ids);
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: Error saving history: $e");
-      }
-    }
-  }
-
-  Future<void> _saveFavorites() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final ids = _favorites.map((e) => e.id.toString()).toList();
-      await prefs.setStringList(_favoritesKey, ids);
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: Error saving favorites: $e");
-      }
-    }
-  }
-
-  Future<void> deleteFromHistory(DictionaryEntry entry) async {
-    _history.removeWhere((h) => h.id == entry.id);
-    await _saveHistory();
-    notifyListeners();
-  }
-
-  Future<void> toggleTheme() async {
-    _themeMode =
-        _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_themeKey, _themeMode.name);
+    _direction = prefs.getString('direction') ?? 'ENG_UZB';
+    _uiLanguage = prefs.getString('ui_language') ?? 'en';
+    _isAdvancedSearch = prefs.getBool('advanced_search') ?? false;
+    await _loadHistoryIds();
+    await _loadFavoriteIds();
     notifyListeners();
   }
 
-  Future<void> toggleUiLanguage() async {
-    _uiLanguage = _uiLanguage == 'en' ? 'uz' : 'en';
+  Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_uiLangKey, _uiLanguage);
+    await prefs.setString('direction', _direction);
+    await prefs.setString('ui_language', _uiLanguage);
+    await prefs.setBool('advanced_search', _isAdvancedSearch);
+  }
+
+  void toggleDirection() {
+    _direction = _direction == 'ENG_UZB' ? 'UZB_ENG' : 'ENG_UZB';
+    _saveSettings();
     notifyListeners();
   }
 
-  Future<void> toggleAdvancedSearch() async {
-    _isAdvancedSearch = !_isAdvancedSearch;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_advancedSearchKey, _isAdvancedSearch);
-    if (_searchQuery.isNotEmpty) {
-      onSearchChanged(_searchQuery);
-    }
+  void setUiLanguage(String lang) {
+    _uiLanguage = lang;
+    _saveSettings();
     notifyListeners();
   }
 
   void setSearchActive(bool isActive) {
     _isSearchActive = isActive;
     if (!isActive) {
-      _searchQuery = '';
       _suggestions = [];
-      _selectedWord = null;
+      _searchQuery = '';
       _searchStatus = SearchStatus.idle;
     }
-    _expandedHistoryItemId = null;
     notifyListeners();
   }
 
-  void toggleDirection() {
-    _direction = _direction == 'ENG_UZB' ? 'UZB_ENG' : 'ENG_UZB';
-    setSearchActive(false);
-    notifyListeners();
-  }
-
-  String _transliterate(String input) {
-    String output = '';
-    for (int i = 0; i < input.length; i++) {
-      output += rusToUz[input[i]] ?? input[i];
+  void toggleAdvancedSearch() {
+    _isAdvancedSearch = !_isAdvancedSearch;
+    _saveSettings();
+    if (_searchQuery.isNotEmpty) {
+      _performSearch(_searchQuery);
     }
-    return output;
+    notifyListeners();
   }
 
-  Future<void> onSearchChanged(String query) async {
-    // Prevent search operations during refresh
+  void onSearchChanged(String query) {
+    _searchQuery = query;
     if (_isRefreshing) return;
 
-    final transliteratedQuery = _transliterate(query);
-    final trimmedQuery = transliteratedQuery.trim();
-    _searchQuery = trimmedQuery;
+    _searchTimer?.cancel();
+    _searchTimer = Timer(_searchDelay, () => _performSearch(query));
+  }
 
-    if (trimmedQuery.isEmpty) {
+  String? _findContextSnippet(DictionaryEntry entry, String query) {
+    final lowerQuery = query.toLowerCase();
+
+    if (entry.mainTranslationMeaningEng?.toLowerCase().contains(lowerQuery) ??
+        false) {
+      return entry.mainTranslationMeaningEng;
+    }
+    if (entry.mainTranslationMeaningUzb?.toLowerCase().contains(lowerQuery) ??
+        false) {
+      return entry.mainTranslationMeaningUzb;
+    }
+
+    for (var ex in entry.exampleSentences) {
+      final sentence = ex["sentence"] as String?;
+      final translation = ex["translation"] as String?;
+      if (sentence?.toLowerCase().contains(lowerQuery) ?? false) {
+        return sentence;
+      }
+      if (translation?.toLowerCase().contains(lowerQuery) ?? false) {
+        return translation;
+      }
+    }
+
+    for (var meaning in entry.translationMeanings) {
+      if (meaning.toLowerCase().contains(lowerQuery)) {
+        return meaning;
+      }
+    }
+
+    return null;
+  }
+
+  Future<void> _performSearch(String query) async {
+    final trimmedQuery = query.trim();
+
+    if (trimmedQuery.length < 2) {
       _suggestions = [];
       _searchStatus = SearchStatus.idle;
       notifyListeners();
@@ -293,84 +177,194 @@ class DictionaryProvider with ChangeNotifier {
 
     try {
       if (_isAdvancedSearch) {
-        _suggestions = await _dbHelper.advancedSearch(trimmedQuery, _direction);
+        final results =
+            await _dbHelper.advancedSearch(trimmedQuery, _direction);
+        _suggestions = results.map((entry) {
+          final context = _findContextSnippet(entry, trimmedQuery);
+          return SearchResult(
+            id: entry.id,
+            word: entry.word,
+            translationPreview: entry.mainTranslationWord ?? '',
+            contextSnippet: context,
+            matchedQuery: trimmedQuery,
+          );
+        }).toList();
       } else {
-        _suggestions = await _dbHelper.searchWord(trimmedQuery, _direction);
+        _suggestions = await _dbHelper.fastSearch(trimmedQuery, _direction);
       }
       _searchStatus = _suggestions.isEmpty
           ? SearchStatus.noResults
           : SearchStatus.resultsFound;
     } catch (e) {
-      if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: Search error: $e");
-      }
       _searchStatus = SearchStatus.error;
-    }
-    notifyListeners();
-  }
-
-  Future<void> selectWordFromSearch(String word) async {
-    _expandedHistoryItemId = null;
-    try {
-      _selectedWord = await _dbHelper.getWordDetails(word, _direction);
-      if (_selectedWord != null) {
-        if (_favorites.any((fav) => fav.id == _selectedWord!.id)) {
-          _selectedWord!.isFavorite = true;
-        }
-        _history.removeWhere((entry) => entry.id == _selectedWord!.id);
-        _history.insert(0, _selectedWord!);
-        await _saveHistory();
-      }
-    } catch (e) {
       if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: Error selecting word from search: $e");
+        print("Search error: $e");
       }
     }
     notifyListeners();
   }
 
-  Future<void> selectWord(String word, String direction) async {
-    if (word.isEmpty) {
+  Future<void> selectWordFromSearch(int wordId) async {
+    _selectedWord = await _dbHelper.getWordDetailsById(wordId);
+    if (_selectedWord != null) {
+      await _addToHistory(_selectedWord!);
+    }
+    notifyListeners();
+  }
+
+  Future<void> selectWordById(int wordId) async {
+    if (wordId == 0) {
       _selectedWord = null;
-      notifyListeners();
-      return;
-    }
-    _expandedHistoryItemId = null;
-    try {
-      final details = await _dbHelper.getWordDetails(word, direction);
-      if (details != null) {
-        _selectedWord = details;
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint("DICTIONARY_PROVIDER: Error selecting word: $e");
-      }
-    }
-    notifyListeners();
-  }
-
-  void toggleFavorite(DictionaryEntry entry) {
-    entry.isFavorite = !entry.isFavorite;
-    final indexInHistory = _history.indexWhere((h) => h.id == entry.id);
-    if (indexInHistory != -1) {
-      _history[indexInHistory].isFavorite = entry.isFavorite;
-    }
-    if (entry.isFavorite) {
-      _favorites.removeWhere((fav) => fav.id == entry.id);
-      _favorites.insert(0, entry);
     } else {
-      _favorites.removeWhere((fav) => fav.id == entry.id);
+      _selectedWord = await _dbHelper.getWordDetailsById(wordId);
+      if (_selectedWord != null) {
+        await _addToHistory(_selectedWord!);
+      }
     }
-    _saveFavorites();
     notifyListeners();
   }
 
-  void toggleHistoryItemExpansion(int entryId) {
-    if (_expandedHistoryItemId == entryId) {
+  void selectWord(String word, String direction) async {
+    _selectedWord = await _dbHelper.getWordDetails(word, direction);
+    if (_selectedWord != null) {
+      await _addToHistory(_selectedWord!);
+    }
+    notifyListeners();
+  }
+
+  Future<DictionaryEntry?> getHistoryEntryById(int id) async {
+    if (_historyCache.containsKey(id)) {
+      return _historyCache[id];
+    }
+    final entry = await _dbHelper.getWordDetailsById(id);
+    if (entry != null) {
+      entry.isFavorite = _favoriteIds.contains(id);
+      _historyCache[id] = entry;
+    }
+    return entry;
+  }
+
+  Future<List<DictionaryEntry>> getPaginatedFavorites(
+      int page, int pageSize) async {
+    final startIndex = page * pageSize;
+    if (startIndex >= _favoriteIds.length) {
+      return [];
+    }
+    final endIndex = (startIndex + pageSize > _favoriteIds.length)
+        ? _favoriteIds.length
+        : startIndex + pageSize;
+    final idsToFetch = _favoriteIds.sublist(startIndex, endIndex);
+    final entries = await _dbHelper.getWordsByIds(idsToFetch);
+    for (var entry in entries) {
+      entry.isFavorite = true;
+    }
+    return entries;
+  }
+
+  Future<void> _loadHistoryIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    _historyIds = prefs
+            .getStringList('history')
+            ?.map((id) => int.tryParse(id) ?? -1)
+            .where((id) => id != -1)
+            .toList() ??
+        [];
+  }
+
+  Future<void> _addToHistory(DictionaryEntry entry) async {
+    _historyIds.remove(entry.id);
+    _historyIds.insert(0, entry.id);
+    if (_historyIds.length > 50) {
+      final removedId = _historyIds.removeLast();
+      _historyCache.remove(removedId);
+    }
+    entry.isFavorite = _favoriteIds.contains(entry.id);
+    _historyCache[entry.id] = entry;
+
+    await _saveHistoryIds();
+    notifyListeners();
+  }
+
+  Future<void> _saveHistoryIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final historyIdsAsStrings = _historyIds.map((id) => id.toString()).toList();
+    await prefs.setStringList('history', historyIdsAsStrings);
+  }
+
+  Future<void> deleteFromHistory(int entryId) async {
+    // Create a new list instance to ensure Selector detects the change.
+    final newHistoryIds = List<int>.from(_historyIds);
+    newHistoryIds.remove(entryId);
+    _historyIds = newHistoryIds;
+
+    _historyCache.remove(entryId);
+    await _saveHistoryIds();
+    notifyListeners();
+  }
+
+  Future<void> _loadFavoriteIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    _favoriteIds = prefs
+            .getStringList('favorites')
+            ?.map((id) => int.tryParse(id) ?? -1)
+            .where((id) => id != -1)
+            .toList() ??
+        [];
+  }
+
+  Future<void> _saveFavoriteIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favoriteIdsAsStrings =
+        _favoriteIds.map((id) => id.toString()).toList();
+    await prefs.setStringList('favorites', favoriteIdsAsStrings);
+  }
+
+  Future<void> toggleFavorite(DictionaryEntry entry) async {
+    final isCurrentlyFavorite = _favoriteIds.contains(entry.id);
+    entry.isFavorite = !isCurrentlyFavorite;
+
+    if (entry.isFavorite) {
+      _favoriteIds.remove(entry.id);
+      _favoriteIds.insert(0, entry.id);
+    } else {
+      _favoriteIds.remove(entry.id);
+    }
+
+    await _saveFavoriteIds();
+
+    if (_historyCache.containsKey(entry.id)) {
+      _historyCache[entry.id]!.isFavorite = entry.isFavorite;
+    }
+    if (_selectedWord?.id == entry.id) {
+      _selectedWord?.isFavorite = entry.isFavorite;
+    }
+
+    notifyListeners();
+  }
+
+  void toggleHistoryItemExpansion(int id) {
+    if (_expandedHistoryItemId == id) {
       _expandedHistoryItemId = null;
     } else {
-      _expandedHistoryItemId = entryId;
+      _expandedHistoryItemId = id;
     }
     notifyListeners();
+  }
+
+  Future<void> refreshDatabase() async {
+    _isRefreshing = true;
+    notifyListeners();
+    await _dbHelper.reinitializeDatabase();
+    _historyCache.clear();
+    await _loadHistoryIds();
+    await _loadFavoriteIds();
+    _isRefreshing = false;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _searchTimer?.cancel();
+    super.dispose();
   }
 }

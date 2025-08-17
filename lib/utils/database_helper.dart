@@ -1,3 +1,5 @@
+// UPDATE 1
+// lib/utils/database_helper.dart
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -6,103 +8,155 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/dictionary_entry.dart';
+import '../models/search_result.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
   factory DatabaseHelper() => _instance;
   DatabaseHelper._internal();
 
-  static Database? _database;
+  static Database? _searchDb;
+  static Database? _fullDb;
 
-  Future<Database> get database async {
-    _database ??= await _initDatabase();
-    return _database!;
+  // Lazily initialize databases when they are first requested.
+  Future<Database> get searchDatabase async {
+    _searchDb ??= await _initSearchDatabase();
+    return _searchDb!;
   }
 
+  Future<Database> get fullDatabase async {
+    _fullDb ??= await _initFullDatabase();
+    return _fullDb!;
+  }
+
+  /// Closes and nullifies database connections, forcing re-initialization on next access.
   Future<void> reinitializeDatabase() async {
-    if (_database != null) {
-      await _database!.close();
-      _database = null;
+    if (_searchDb != null) {
+      await _searchDb!.close();
+      _searchDb = null;
+    }
+    if (_fullDb != null) {
+      await _fullDb!.close();
+      _fullDb = null;
     }
     if (kDebugMode) {
-      print("DB_HELPER: Database reinitialized");
+      print("DB_HELPER: All databases reinitialized");
     }
   }
 
-  Future<Database> _initDatabase() async {
-    Directory documentsDirectory = await getApplicationDocumentsDirectory();
+  /// Initializes the search database using the centralized helper method.
+  Future<Database> _initSearchDatabase() async {
+    return _openDatabase(
+      liteDbName: 'search_index_lite.db',
+      assetDbName: 'search_index_lite.db', // Asset name for the lite version
+      fullDbName: 'search_index_full.db', // Downloaded full version name
+      minFullDbSizeBytes: 100000, // 100KB
+    );
+  }
 
-    final String fullDbPath =
-        join(documentsDirectory.path, 'dictionary_full.db');
-    final String liteDbPath = join(documentsDirectory.path, 'dictionary.db');
+  /// Initializes the full dictionary database using the centralized helper method.
+  Future<Database> _initFullDatabase() async {
+    return _openDatabase(
+      liteDbName: 'dictionary_lite.db',
+      assetDbName: 'dictionary.db', // The asset is the lite version
+      fullDbName: 'dictionary.db', // Downloaded full version name
+      minFullDbSizeBytes: 1000000, // 1MB
+    );
+  }
 
-    // Check for full database first
-    if (await databaseExists(fullDbPath)) {
+  /// A centralized and robust method to open a database.
+  /// It prioritizes the full (downloaded) version, falls back to the lite (bundled)
+  /// version, and copies the lite version from assets on the first run.
+  Future<Database> _openDatabase({
+    required String liteDbName,
+    required String assetDbName,
+    required String fullDbName,
+    required int minFullDbSizeBytes,
+  }) async {
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final fullDbPath = join(documentsDirectory.path, fullDbName);
+    final liteDbPath = join(documentsDirectory.path, liteDbName);
+
+    // 1. Prioritize the full, downloaded database if it exists and is valid.
+    if (await File(fullDbPath).exists()) {
       try {
-        // Verify the file is not corrupted before opening
         final file = File(fullDbPath);
         final stat = await file.stat();
-        if (stat.size > 1000000) {
-          // At least 1MB
-          if (kDebugMode) {
-            print(
-                "DB_HELPER: Full database file exists and appears valid. Opening...");
-          }
-          final db = await openDatabase(fullDbPath, readOnly: true);
-          // Test the database by running a simple query
-          await db.rawQuery('SELECT COUNT(*) FROM dictionary LIMIT 1');
-          return db;
+        if (stat.size > minFullDbSizeBytes) {
+          if (kDebugMode) print("DB_HELPER: Opening full DB: $fullDbName");
+          return await openDatabase(fullDbPath, readOnly: true);
         } else {
-          if (kDebugMode) {
-            print(
-                "DB_HELPER: Full database file exists but appears corrupted. Deleting...");
-          }
+          // The file is too small, likely corrupt. Delete it.
+          if (kDebugMode)
+            print("DB_HELPER: Corrupt full DB ($fullDbName), deleting.");
           await file.delete();
         }
       } catch (e) {
-        if (kDebugMode) {
+        if (kDebugMode)
           print(
-              "DB_HELPER: Error opening full database: $e. Falling back to lite version.");
-        }
-        // Delete corrupted full database
+              "DB_HELPER: Error checking full DB ($fullDbName): $e. Deleting.");
         try {
           await File(fullDbPath).delete();
         } catch (_) {}
       }
     }
 
-    // Fallback to lite database
+    // 2. If full DB not used, fall back to the lite version. Copy from assets if it doesn't exist.
     if (!await databaseExists(liteDbPath)) {
-      if (kDebugMode) {
-        print("DB_HELPER: Lite database not found. Copying from assets...");
-      }
+      if (kDebugMode)
+        print(
+            "DB_HELPER: Lite DB ($liteDbName) not found. Copying from assets...");
       try {
-        await Directory(dirname(liteDbPath)).create(recursive: true);
-        ByteData data = await rootBundle.load(join('assets', 'dictionary.db'));
+        ByteData data = await rootBundle.load(join('assets', assetDbName));
         List<int> bytes =
             data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
         await File(liteDbPath).writeAsBytes(bytes, flush: true);
-        if (kDebugMode) {
-          print("DB_HELPER: Successfully copied lite database from assets.");
-        }
+        if (kDebugMode)
+          print("DB_HELPER: Copied asset '$assetDbName' to '$liteDbName'.");
       } catch (e) {
-        if (kDebugMode) {
-          debugPrint("DB_HELPER: FATAL ERROR copying database: $e");
-        }
+        if (kDebugMode)
+          debugPrint(
+              "DB_HELPER: FATAL ERROR copying lite DB '$assetDbName': $e");
         rethrow;
       }
     }
 
-    if (kDebugMode) {
-      print("DB_HELPER: Opening lite database.");
-    }
+    // 3. Open the lite database.
+    if (kDebugMode) print("DB_HELPER: Opening lite DB: $liteDbName");
     return await openDatabase(liteDbPath, readOnly: true);
   }
 
-  Future<bool> isWordValid(String word, String direction) async {
-    final db = await database;
-    final List<Map<String, dynamic>> result = await db.query(
+  Future<List<SearchResult>> fastSearch(String query, String direction) async {
+    final db = await searchDatabase;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'word_index',
+      columns: ['id', 'word', 'translation_preview'],
+      where: 'word LIKE ? AND direction = ?',
+      whereArgs: ['$query%', direction],
+      orderBy: 'frequency DESC, word ASC',
+      limit: 20,
+    );
+    return maps.map((map) => SearchResult.fromMap(map)).toList();
+  }
+
+  Future<DictionaryEntry?> getWordDetailsById(int id) async {
+    final db = await fullDatabase;
+    final List<Map<String, dynamic>> maps = await db.query(
       'dictionary',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (maps.isNotEmpty) {
+      return DictionaryEntry.fromMap(maps.first);
+    }
+    return null;
+  }
+
+  Future<bool> isWordValid(String word, String direction) async {
+    final db = await searchDatabase;
+    final List<Map<String, dynamic>> result = await db.query(
+      'word_index',
       where: 'word = ? AND direction = ?',
       whereArgs: [word.toLowerCase(), direction],
       limit: 1,
@@ -111,7 +165,7 @@ class DatabaseHelper {
   }
 
   Future<DictionaryEntry?> getHangmanWord() async {
-    final db = await database;
+    final db = await fullDatabase;
     final random = Random();
 
     const whereClause = '''
@@ -151,7 +205,7 @@ class DatabaseHelper {
   }
 
   Future<DictionaryEntry?> getGameWordForLevel(int level) async {
-    final db = await database;
+    final db = await fullDatabase;
     final random = Random();
 
     int wordLength = level + 3;
@@ -209,7 +263,7 @@ class DatabaseHelper {
   }
 
   Future<DictionaryEntry?> getGameWord() async {
-    final db = await database;
+    final db = await fullDatabase;
     const whereClause = '''
       direction = 'ENG_UZB' AND
       LENGTH(main_translation_word) <= 10 AND
@@ -236,28 +290,10 @@ class DatabaseHelper {
     return null;
   }
 
-  Future<List<DictionaryEntry>> searchWord(
-      String query, String direction) async {
-    if (query.isEmpty) return [];
-    final db = await database;
-
-    final List<Map<String, dynamic>> maps = await db.query(
-      'dictionary',
-      where: 'word LIKE ? AND direction = ?',
-      whereArgs: ['$query%', direction],
-      limit: 20,
-    );
-
-    if (maps.isNotEmpty) {
-      return maps.map((map) => DictionaryEntry.fromMap(map)).toList();
-    }
-    return [];
-  }
-
   Future<List<DictionaryEntry>> advancedSearch(
       String query, String direction) async {
     if (query.isEmpty) return [];
-    final db = await database;
+    final db = await fullDatabase;
     final wildQuery = '%$query%';
 
     final List<Map<String, dynamic>> maps = await db.query(
@@ -294,7 +330,7 @@ class DatabaseHelper {
   }
 
   Future<DictionaryEntry?> getWordDetails(String word, String direction) async {
-    final db = await database;
+    final db = await fullDatabase;
     final List<Map<String, dynamic>> maps = await db.query(
       'dictionary',
       where: 'word = ? AND direction = ?',
@@ -309,7 +345,7 @@ class DatabaseHelper {
 
   Future<List<DictionaryEntry>> getWordsByIds(List<int> ids) async {
     if (ids.isEmpty) return [];
-    final db = await database;
+    final db = await fullDatabase;
     final List<Map<String, dynamic>> maps = await db.query(
       'dictionary',
       where: 'id IN (${ids.map((_) => '?').join(', ')})',

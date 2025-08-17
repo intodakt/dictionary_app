@@ -1,19 +1,77 @@
+// UPDATE 3
+// lib/screens/favorites_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/dictionary_entry.dart';
 import '../providers/dictionary_provider.dart';
 
-class FavoritesScreen extends StatelessWidget {
+class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
 
   @override
+  State<FavoritesScreen> createState() => _FavoritesScreenState();
+}
+
+class _FavoritesScreenState extends State<FavoritesScreen> {
+  final ScrollController _scrollController = ScrollController();
+  final List<DictionaryEntry> _favorites = [];
+  bool _isLoading = false;
+  bool _hasMore = true;
+  int _currentPage = 0;
+  static const int _pageSize = 15;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchFavorites();
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+              _scrollController.position.maxScrollExtent - 200 &&
+          !_isLoading) {
+        _fetchFavorites();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchFavorites() async {
+    if (_isLoading || !_hasMore) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final provider = Provider.of<DictionaryProvider>(context, listen: false);
+    final newFavorites =
+        await provider.getPaginatedFavorites(_currentPage, _pageSize);
+
+    if (newFavorites.length < _pageSize) {
+      _hasMore = false;
+    }
+
+    setState(() {
+      _favorites.addAll(newFavorites);
+      _currentPage++;
+      _isLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Use a Consumer just to react to favorite list changes (e.g., deletions)
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sevimlilar'), // Favorites
+        title: const Text('Favorites'),
       ),
       body: Consumer<DictionaryProvider>(
         builder: (context, provider, child) {
-          if (provider.favorites.isEmpty) {
+          // The list of IDs is the source of truth for emptiness.
+          if (provider.favoriteIds.isEmpty && _favorites.isEmpty) {
             return const Center(
               child: Text(
                 'You haven\'t added any words to your favorites yet.',
@@ -22,9 +80,13 @@ class FavoritesScreen extends StatelessWidget {
             );
           }
           return ListView.builder(
-            itemCount: provider.favorites.length,
+            controller: _scrollController,
+            itemCount: _favorites.length + (_hasMore ? 1 : 0),
             itemBuilder: (context, index) {
-              final entry = provider.favorites[index];
+              if (index >= _favorites.length) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final entry = _favorites[index];
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: ListTile(
@@ -33,15 +95,16 @@ class FavoritesScreen extends StatelessWidget {
                   trailing: IconButton(
                     icon: const Icon(Icons.favorite, color: Colors.red),
                     onPressed: () {
-                      // Remove from favorites
                       provider.toggleFavorite(entry);
+                      // Optimistically remove from the local list
+                      setState(() {
+                        _favorites.removeWhere((item) => item.id == entry.id);
+                      });
                     },
                   ),
                   onTap: () {
-                    // When tapped, show details on the home screen
-                    // Pass both the word and its original direction
-                    provider.selectWord(entry.word, entry.direction);
-                    Navigator.pop(context); // Go back to home screen
+                    provider.selectWordById(entry.id);
+                    Navigator.pop(context);
                   },
                 ),
               );

@@ -1,12 +1,12 @@
+// UPDATE 5
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/dictionary_provider.dart';
-import 'providers/game_provider.dart';
-import 'providers/hangman_provider.dart';
-import 'providers/word_puzzle_provider.dart';
 import 'providers/download_provider.dart';
+import 'providers/theme_provider.dart'; // Import the new provider
 import 'screens/home_screen.dart';
 
 Future<void> main() async {
@@ -32,31 +32,30 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // The new ThemeProvider is provided at the top level.
         ChangeNotifierProvider(
           create: (context) =>
-              DictionaryProvider(initialThemeMode: initialThemeMode),
+              ThemeProvider(initialThemeMode: initialThemeMode),
         ),
-        ChangeNotifierProvider(create: (context) => GameProvider()),
-        ChangeNotifierProvider(create: (context) => HangmanProvider()),
-        ChangeNotifierProvider(create: (context) => WordPuzzleProvider()),
-        // Fixed provider dependency setup
+        ChangeNotifierProvider(
+          create: (context) => DictionaryProvider()..init(),
+        ),
         ChangeNotifierProxyProvider<DictionaryProvider, DownloadProvider>(
           create: (context) {
             final dictionaryProvider =
                 Provider.of<DictionaryProvider>(context, listen: false);
-            return DownloadProvider(dictionaryProvider);
+            return DownloadProvider(dictionaryProvider)..init();
           },
           update: (context, dictionaryProvider, previousDownloadProvider) {
-            // Reuse the existing provider if possible to maintain state
-            if (previousDownloadProvider != null) {
-              return previousDownloadProvider;
-            }
-            return DownloadProvider(dictionaryProvider);
+            return previousDownloadProvider ??
+                DownloadProvider(dictionaryProvider)
+              ..init();
           },
         ),
       ],
-      child: Consumer<DictionaryProvider>(
-        builder: (context, provider, child) {
+      // The Consumer now listens ONLY to ThemeProvider.
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
           return MaterialApp(
             title: 'Dictionary App',
             theme: ThemeData(
@@ -105,7 +104,8 @@ class MyApp extends StatelessWidget {
               cardColor: Colors.black,
               useMaterial3: true,
             ),
-            themeMode: provider.themeMode,
+            // The themeMode is now sourced from the dedicated ThemeProvider.
+            themeMode: themeProvider.themeMode,
             debugShowCheckedModeBanner: false,
             home: const HomeScreen(),
           );

@@ -1,3 +1,5 @@
+// lib/providers/word_puzzle_provider.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/database_helper.dart';
@@ -5,20 +7,26 @@ import '../utils/database_helper.dart';
 class WordPuzzleProvider with ChangeNotifier {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
-  // Keys for persistence
   static const String _maxScoreKey = 'puzzle_max_score';
+  static const String _scoreKey = 'puzzle_score';
+  static const String _boardKey = 'puzzle_board';
+  static const String _foundWordsKey = 'puzzle_found_words';
+  static const String _gameLanguageKey = 'puzzle_game_language';
 
   List<String?> _board = List.generate(16, (_) => null);
   Set<String> _foundWords = {};
   int _score = 0;
   int _maxScore = 0;
   String _gameLanguage = 'ENG_UZB';
+  bool isGameActive = false;
+  bool _isLoading = true;
 
   List<String?> get board => _board;
   Set<String> get foundWords => _foundWords;
   int get score => _score;
   int get maxScore => _maxScore;
   String get gameLanguage => _gameLanguage;
+  bool get isLoading => _isLoading;
 
   String get currentWord {
     final emptyIndex = _board.indexOf(null);
@@ -26,14 +34,53 @@ class WordPuzzleProvider with ChangeNotifier {
     return _board.sublist(0, emptyIndex).where((l) => l != null).join();
   }
 
-  WordPuzzleProvider() {
-    _loadSettings();
+  WordPuzzleProvider();
+
+  Future<void> init() async {
+    await _loadSettings();
   }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     _maxScore = prefs.getInt(_maxScoreKey) ?? 0;
+    _score = prefs.getInt(_scoreKey) ?? 0;
+    _gameLanguage = prefs.getString(_gameLanguageKey) ?? 'ENG_UZB';
+
+    final foundWordsList = prefs.getStringList(_foundWordsKey);
+    if (foundWordsList != null) {
+      _foundWords = Set.from(foundWordsList);
+    }
+
+    final boardJson = prefs.getString(_boardKey);
+    if (boardJson != null) {
+      try {
+        final decodedBoard = jsonDecode(boardJson) as List<dynamic>;
+        final tempBoard = decodedBoard.map((item) => item as String?).toList();
+        if (tempBoard.length == 16 &&
+            tempBoard.where((tile) => tile == null).length == 1) {
+          _board = tempBoard;
+          isGameActive = true;
+        } else {
+          isGameActive = false;
+        }
+      } catch (e) {
+        isGameActive = false;
+      }
+    } else {
+      isGameActive = false;
+    }
+
+    _isLoading = false;
     notifyListeners();
+  }
+
+  Future<void> _saveGameState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_scoreKey, _score);
+    await prefs.setString(_gameLanguageKey, _gameLanguage);
+    await prefs.setStringList(_foundWordsKey, _foundWords.toList());
+    final boardJson = jsonEncode(_board);
+    await prefs.setString(_boardKey, boardJson);
   }
 
   Future<void> _saveMaxScore() async {
@@ -50,6 +97,8 @@ class WordPuzzleProvider with ChangeNotifier {
     _score = 0;
     _foundWords = {};
     _generateBoard();
+    isGameActive = true;
+    _saveGameState();
     notifyListeners();
   }
 
@@ -100,6 +149,7 @@ class WordPuzzleProvider with ChangeNotifier {
       _checkWord();
       notifyListeners();
     }
+    _saveGameState();
   }
 
   Future<void> _checkWord() async {

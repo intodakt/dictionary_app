@@ -1,3 +1,4 @@
+// lib/providers/game_provider.dart
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -35,8 +36,10 @@ class GameProvider with ChangeNotifier {
   int get hints => _hints;
   int get maxScore => _maxScore;
 
-  GameProvider() {
-    _loadSettings();
+  GameProvider();
+
+  Future<void> init() async {
+    await _loadSettings();
   }
 
   Future<void> _loadSettings() async {

@@ -1,3 +1,4 @@
+// lib/providers/hangman_provider.dart
 import 'package:flutter/material.dart';
 import '../models/dictionary_entry.dart';
 import '../utils/database_helper.dart';
@@ -16,6 +17,12 @@ class HangmanProvider with ChangeNotifier {
   List<String> get guessedLetters => _guessedLetters;
   int get incorrectGuesses => _incorrectGuesses;
   HangmanStatus get gameStatus => _gameStatus;
+
+  HangmanProvider();
+
+  Future<void> init() async {
+    // Can be used for any async setup in the future
+  }
 
   String get wordToDisplay {
     if (_currentWord == null) {

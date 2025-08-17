@@ -1,3 +1,5 @@
+// UPDATE 6
+// lib/screens/word_puzzle_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/word_puzzle_provider.dart';
@@ -11,18 +13,43 @@ class WordPuzzleScreen extends StatefulWidget {
 }
 
 class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
+  late WordPuzzleProvider _provider;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showLanguageSelectionDialog(
-          context, Provider.of<WordPuzzleProvider>(context, listen: false));
-    });
+    _provider = Provider.of<WordPuzzleProvider>(context, listen: false);
+    _provider.addListener(_onProviderUpdate);
+    if (!_provider.isLoading) {
+      _checkGameState();
+    }
+  }
+
+  @override
+  void dispose() {
+    _provider.removeListener(_onProviderUpdate);
+    super.dispose();
+  }
+
+  void _onProviderUpdate() {
+    if (mounted && !_provider.isLoading) {
+      _checkGameState();
+      _provider.removeListener(_onProviderUpdate);
+    }
+  }
+
+  void _checkGameState() {
+    if (!_provider.isGameActive) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showLanguageSelectionDialog(context, _provider);
+        }
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Fiftinity'),
@@ -38,21 +65,27 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
           )
         ],
       ),
+      // The main Consumer now only handles the loading state.
+      // The UI is composed of smaller, independent widgets for performance.
       body: Consumer<WordPuzzleProvider>(
         builder: (context, provider, child) {
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                _buildInfoBar(provider, theme),
-                const SizedBox(height: 16),
-                _buildGameBoard(provider, theme),
-                const SizedBox(height: 16),
-                _buildFoundWords(provider, theme),
-              ],
-            ),
-          );
+          if (provider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return child!;
         },
+        child: const Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              _InfoBar(),
+              SizedBox(height: 16),
+              _GameBoard(),
+              SizedBox(height: 16),
+              _FoundWords(),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -122,110 +155,145 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
       ),
     );
   }
+}
 
-  Widget _buildInfoBar(WordPuzzleProvider provider, ThemeData theme) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: Column(
-          children: [
-            Text(
-              'Max Score: ${provider.maxScore}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: theme.colorScheme.primary),
+// UPDATE 6: Refactored UI into smaller, more performant widgets.
+
+class _InfoBar extends StatelessWidget {
+  const _InfoBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // This Consumer only rebuilds the info bar.
+    return Consumer<WordPuzzleProvider>(
+      builder: (context, provider, child) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              children: [
+                Text(
+                  'Max Score: ${provider.maxScore}',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary),
+                ),
+                const Divider(),
+                Text(
+                  'Word: ${provider.currentWord}',
+                  style: theme.textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const Divider(),
-            Text(
-              'Word: ${provider.currentWord}',
-              style: theme.textTheme.titleMedium,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
+}
 
-  Widget _buildGameBoard(WordPuzzleProvider provider, ThemeData theme) {
+class _GameBoard extends StatelessWidget {
+  const _GameBoard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF93C1C1) : Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.dividerColor),
-      ),
-      child: AspectRatio(
-        aspectRatio: 1.0,
-        child: GridView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
+    // This Consumer only rebuilds the game board.
+    return Consumer<WordPuzzleProvider>(
+      builder: (context, provider, child) {
+        return Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF93C1C1) : Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.dividerColor),
           ),
-          itemCount: 16,
-          itemBuilder: (context, index) {
-            final letter = provider.board[index];
-            if (letter == null) {
-              return const SizedBox.shrink();
-            }
-            return GestureDetector(
-              onTap: () => provider.moveTile(index),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: theme.scaffoldBackgroundColor,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: theme.dividerColor),
-                ),
-                child: Center(
-                  child: Text(
-                    letter.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87,
+          child: AspectRatio(
+            aspectRatio: 1.0,
+            child: GridView.builder(
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+              ),
+              itemCount: 16,
+              itemBuilder: (context, index) {
+                final letter = provider.board[index];
+                if (letter == null) {
+                  return const SizedBox.shrink();
+                }
+                return GestureDetector(
+                  onTap: () => provider.moveTile(index),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.scaffoldBackgroundColor,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: theme.dividerColor),
                     ),
+                    child: Center(
+                      child: Text(
+                        letter.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FoundWords extends StatelessWidget {
+  const _FoundWords();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // This Consumer only rebuilds the found words section.
+    return Consumer<WordPuzzleProvider>(
+      builder: (context, provider, child) {
+        return Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Found Words:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Score: ${provider.score}',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const Divider(),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Wrap(
+                    spacing: 8.0,
+                    runSpacing: 4.0,
+                    children: provider.foundWords
+                        .map((word) => Chip(label: Text(word)))
+                        .toList(),
                   ),
                 ),
               ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFoundWords(WordPuzzleProvider provider, ThemeData theme) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Found Words:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              Text('Score: ${provider.score}',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
             ],
           ),
-          const Divider(),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Wrap(
-                spacing: 8.0,
-                runSpacing: 4.0,
-                children: provider.foundWords
-                    .map((word) => Chip(label: Text(word)))
-                    .toList(),
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

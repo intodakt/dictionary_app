@@ -1,219 +1,300 @@
+// UPDATE 14
+// lib/screens/home_screen.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../providers/dictionary_provider.dart';
 import '../providers/download_provider.dart';
 import '../models/dictionary_entry.dart';
+import '../models/search_result.dart';
 import '../widgets/app_drawer.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  Widget build(BuildContext context) {
+    // We use a provider here just to get the initial value for PopScope.
+    final provider = Provider.of<DictionaryProvider>(context, listen: false);
+    return PopScope(
+      canPop: provider.selectedWord == null,
+      onPopInvoked: (bool didPop) {
+        if (didPop) return;
+        // The action is now handled within the _HomeBody widget.
+        // This PopScope is mainly for initial setup. A second one in _HomeBody
+        // will handle the dynamic state changes.
+      },
+      child: const Scaffold(
+        appBar: _HomeAppBar(), // The AppBar is now its own widget.
+        drawer: AppDrawer(),
+        body: _HomeBody(), // The Body is now its own widget.
+      ),
+    );
+  }
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+// --- Refactored Widgets for Performance ---
+
+class _HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _HomeAppBar();
+
+  @override
+  Widget build(BuildContext context) {
+    // This Consumer ensures only the AppBar rebuilds on state changes it cares about.
+    return Consumer2<DictionaryProvider, DownloadProvider>(
+      builder: (context, provider, downloadProvider, child) {
+        final theme = Theme.of(context);
+        final isDownloading =
+            downloadProvider.status == DownloadStatus.downloading;
+        final isDownloadSuccess =
+            downloadProvider.status == DownloadStatus.success;
+        final isRefreshing = provider.isRefreshing;
+        final isBlocked = isDownloading || isDownloadSuccess || isRefreshing;
+
+        return AppBar(
+          title: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            transitionBuilder: (Widget child, Animation<double> animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(scale: animation, child: child),
+              );
+            },
+            child: provider.isSearchActive
+                ? _SearchField(isBlocked: isBlocked)
+                : _LanguageSwitcher(isBlocked: isBlocked),
+          ),
+          centerTitle: true,
+          actions: [
+            if (isBlocked)
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      value: isDownloading ? downloadProvider.progress : null,
+                    ),
+                  ),
+                ),
+              ),
+            IconButton(
+              icon: Icon(provider.isSearchActive ? Icons.close : Icons.search),
+              onPressed: isBlocked
+                  ? null
+                  : () {
+                      provider.setSearchActive(!provider.isSearchActive);
+                    },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+
+class _SearchField extends StatefulWidget {
+  final bool isBlocked;
+  const _SearchField({required this.isBlocked});
+
+  @override
+  State<_SearchField> createState() => _SearchFieldState();
+}
+
+class _SearchFieldState extends State<_SearchField> {
   final TextEditingController _searchController = TextEditingController();
+  // Store the provider instance to use it safely in dispose().
+  late DictionaryProvider _provider;
+
+  @override
+  void initState() {
+    super.initState();
+    // Get the provider instance once, when the widget is created.
+    _provider = Provider.of<DictionaryProvider>(context, listen: false);
+
+    if (_provider.isSearchActive) {
+      _searchController.text = _provider.searchQuery;
+    }
+    _provider.addListener(_onProviderChange);
+  }
 
   @override
   void dispose() {
+    // Safely use the stored provider instance to remove the listener.
+    _provider.removeListener(_onProviderChange);
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onProviderChange() {
+    if (!_provider.isSearchActive && _searchController.text.isNotEmpty) {
+      _searchController.clear();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Consumer2<DictionaryProvider, DownloadProvider>(
-      builder: (context, provider, downloadProvider, child) {
+    final theme = Theme.of(context);
+    return TextField(
+      key: const ValueKey('searchField'),
+      controller: _searchController,
+      autofocus: true,
+      enabled: !widget.isBlocked,
+      decoration: InputDecoration(
+        hintText:
+            _provider.isAdvancedSearch ? 'Advanced Search...' : 'Search...',
+        border: InputBorder.none,
+        hintStyle: TextStyle(
+          color: widget.isBlocked ? theme.disabledColor : theme.hintColor,
+        ),
+      ),
+      style: TextStyle(
+        color: widget.isBlocked
+            ? theme.disabledColor
+            : theme.textTheme.bodyLarge?.color,
+      ),
+      onChanged: (query) {
+        if (!widget.isBlocked) {
+          _provider.onSearchChanged(query);
+        }
+      },
+    );
+  }
+}
+
+class _LanguageSwitcher extends StatelessWidget {
+  final bool isBlocked;
+  const _LanguageSwitcher({required this.isBlocked});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final provider = Provider.of<DictionaryProvider>(context, listen: false);
+    return GestureDetector(
+      key: const ValueKey('langSwitcher'),
+      onTap: isBlocked ? null : provider.toggleDirection,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isBlocked
+              ? theme.disabledColor.withAlpha(25)
+              : theme.colorScheme.primary.withAlpha(25),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              provider.direction.split('_')[0],
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color:
+                    isBlocked ? theme.disabledColor : theme.colorScheme.primary,
+                fontSize: 14,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4.0),
+              child: Icon(
+                Icons.cached,
+                size: 20,
+                color:
+                    isBlocked ? theme.disabledColor : theme.colorScheme.primary,
+              ),
+            ),
+            Text(
+              provider.direction.split('_')[1],
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color:
+                    isBlocked ? theme.disabledColor : theme.colorScheme.primary,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeBody extends StatelessWidget {
+  const _HomeBody();
+
+  @override
+  Widget build(BuildContext context) {
+    // Using a Selector to only rebuild when these specific values change.
+    // This prevents rebuilds from minor UI changes like expanding a history item.
+    return Selector<DictionaryProvider, (bool, DictionaryEntry?)>(
+      selector: (_, provider) =>
+          (provider.isSearchActive, provider.selectedWord),
+      builder: (context, data, child) {
+        final isSearchActive = data.$1;
+        final selectedWord = data.$2;
+        final provider =
+            Provider.of<DictionaryProvider>(context, listen: false);
+
         return PopScope(
-          canPop: provider.selectedWord == null,
+          canPop: selectedWord == null,
           onPopInvoked: (bool didPop) {
-            if (didPop) {
-              return;
-            }
-            if (provider.selectedWord != null) {
-              provider.selectWord('', '');
+            if (didPop) return;
+            if (selectedWord != null) {
+              provider.selectWordById(0);
             }
           },
-          child: Scaffold(
-            appBar: _buildAppBar(provider, downloadProvider),
-            drawer: const AppDrawer(),
-            body: _buildBody(provider, downloadProvider),
+          child: Builder(
+            builder: (context) {
+              // We still need to listen to download status here.
+              // A Consumer is fine as this part of the tree is simple.
+              return Consumer<DownloadProvider>(
+                builder: (context, downloadProvider, _) {
+                  if (downloadProvider.status == DownloadStatus.downloading) {
+                    return _buildDownloadProgressView(downloadProvider);
+                  }
+                  if (downloadProvider.status == DownloadStatus.success) {
+                    return _buildDownloadSuccessView();
+                  }
+                  if (downloadProvider.status == DownloadStatus.error) {
+                    return _buildDownloadErrorView(downloadProvider);
+                  }
+
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: isSearchActive
+                        ? _SuggestionsView()
+                        : (selectedWord != null
+                            ? _WordDetailView(entry: selectedWord)
+                            : _HistoryView()),
+                  );
+                },
+              );
+            },
           ),
         );
       },
     );
   }
 
-  AppBar _buildAppBar(
-      DictionaryProvider provider, DownloadProvider downloadProvider) {
-    final theme = Theme.of(context);
-    final isDownloading = downloadProvider.status == DownloadStatus.downloading;
-    final isDownloadSuccess = downloadProvider.status == DownloadStatus.success;
-    final isRefreshing = provider.isRefreshing;
-    final isBlocked = isDownloading || isDownloadSuccess || isRefreshing;
+  // --- View Builder Methods ---
+  // These are now static methods to emphasize they don't depend on the build context of _HomeBody.
 
-    return AppBar(
-      title: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (Widget child, Animation<double> animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: ScaleTransition(child: child, scale: animation),
-          );
-        },
-        child: provider.isSearchActive
-            ? TextField(
-                key: const ValueKey('searchField'),
-                controller: _searchController,
-                autofocus: true,
-                enabled: !isBlocked,
-                decoration: InputDecoration(
-                  hintText: provider.isAdvancedSearch
-                      ? 'Advanced Search...'
-                      : 'Search...',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(
-                    color: isBlocked ? theme.disabledColor : theme.hintColor,
-                  ),
-                ),
-                style: TextStyle(
-                  color: isBlocked
-                      ? theme.disabledColor
-                      : theme.textTheme.bodyLarge?.color,
-                ),
-                onChanged: (query) {
-                  if (!isBlocked) {
-                    provider.onSearchChanged(query);
-                  }
-                },
-              )
-            : GestureDetector(
-                key: const ValueKey('langSwitcher'),
-                onTap: isBlocked ? null : provider.toggleDirection,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isBlocked
-                        ? theme.disabledColor.withOpacity(0.1)
-                        : theme.colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        provider.direction.split('_')[0],
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isBlocked
-                              ? theme.disabledColor
-                              : theme.colorScheme.primary,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                        child: Icon(
-                          Icons.cached,
-                          size: 20,
-                          color: isBlocked
-                              ? theme.disabledColor
-                              : theme.colorScheme.primary,
-                        ),
-                      ),
-                      Text(
-                        provider.direction.split('_')[1],
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isBlocked
-                              ? theme.disabledColor
-                              : theme.colorScheme.primary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-      ),
-      centerTitle: true,
-      actions: [
-        if (isDownloading || isDownloadSuccess || isRefreshing)
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  value: isDownloading ? downloadProvider.progress : null,
-                ),
-              ),
-            ),
-          ),
-        IconButton(
-          icon: Icon(provider.isSearchActive ? Icons.close : Icons.search),
-          onPressed: isBlocked
-              ? null
-              : () {
-                  provider.setSearchActive(!provider.isSearchActive);
-                  if (!provider.isSearchActive) {
-                    _searchController.clear();
-                  }
-                },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBody(
-      DictionaryProvider provider, DownloadProvider downloadProvider) {
-    // Show download progress overlay if downloading
-    if (downloadProvider.status == DownloadStatus.downloading) {
-      return _buildDownloadProgressView(downloadProvider);
-    }
-
-    // Show success message briefly
-    if (downloadProvider.status == DownloadStatus.success) {
-      return _buildDownloadSuccessView();
-    }
-
-    // Show error if download failed
-    if (downloadProvider.status == DownloadStatus.error) {
-      return _buildDownloadErrorView(downloadProvider);
-    }
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: provider.isSearchActive
-          ? _buildSuggestionsView(provider)
-          : (provider.selectedWord != null
-              ? _buildWordDetailView(provider.selectedWord!, provider)
-              : _buildHistoryView(provider)),
-    );
-  }
-
-  Widget _buildDownloadProgressView(DownloadProvider downloadProvider) {
+  static Widget _buildDownloadProgressView(DownloadProvider downloadProvider) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.download,
-              size: 64,
-              color: Colors.blue,
-            ),
+            const Icon(Icons.download, size: 64, color: Colors.blue),
             const SizedBox(height: 24),
-            const Text(
-              'Downloading Full Database...',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text('Downloading Full Database...',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             LinearProgressIndicator(
               value: downloadProvider.progress,
@@ -221,45 +302,34 @@ class _HomeScreenState extends State<HomeScreen> {
               valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
             ),
             const SizedBox(height: 8),
-            Text(
-              '${(downloadProvider.progress * 100).toStringAsFixed(1)}%',
-              style: const TextStyle(fontSize: 16),
-            ),
+            Text('${(downloadProvider.progress * 100).toStringAsFixed(1)}%',
+                style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 24),
             const Text(
-              'Please wait... App functionality is disabled during download.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
+                'Please wait... App functionality is disabled during download.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDownloadSuccessView() {
+  static Widget _buildDownloadSuccessView() {
     return const Center(
       child: Padding(
-        padding: EdgeInsets.all(32.0),
+        padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.check_circle,
-              size: 64,
-              color: Colors.green,
-            ),
+            Icon(Icons.check_circle, size: 64, color: Colors.green),
             SizedBox(height: 24),
-            Text(
-              'Download Complete!',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            Text('Download Complete!',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             SizedBox(height: 16),
-            Text(
-              'Initializing full database...',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
-            ),
+            Text('Initializing full database...',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey)),
             SizedBox(height: 16),
             CircularProgressIndicator(),
           ],
@@ -268,189 +338,220 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDownloadErrorView(DownloadProvider downloadProvider) {
+  static Widget _buildDownloadErrorView(DownloadProvider downloadProvider) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
-              Icons.error,
-              size: 64,
-              color: Colors.red,
-            ),
+            const Icon(Icons.error, size: 64, color: Colors.red),
             const SizedBox(height: 24),
-            const Text(
-              'Download Failed',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
+            const Text('Download Failed',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             if (downloadProvider.errorMessage != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 16.0),
-                child: Text(
-                  downloadProvider.errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey),
-                ),
+                child: Text(downloadProvider.errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.grey)),
               ),
             ElevatedButton(
-              onPressed: () => downloadProvider.retryDownload(),
-              child: const Text('Retry Download'),
-            ),
+                onPressed: () => downloadProvider.retryDownload(),
+                child: const Text('Retry Download')),
             const SizedBox(height: 8),
             TextButton(
-              onPressed: () => downloadProvider.resetStatus(),
-              child: const Text('Continue with Lite Version'),
-            ),
+                onPressed: () => downloadProvider.resetStatus(),
+                child: const Text('Continue with Lite Version')),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildHighlightedSnippet(String text, String query) {
-    final theme = Theme.of(context);
-    final lowerText = text.toLowerCase();
-    final lowerQuery = query.toLowerCase();
+// --- Views extracted into their own widgets ---
 
-    final startIndex = lowerText.indexOf(lowerQuery);
-    if (startIndex == -1) {
-      return Text(text, maxLines: 2, overflow: TextOverflow.ellipsis);
-    }
-
-    final endIndex = startIndex + query.length;
-
-    final before = text.substring(0, startIndex);
-    final match = text.substring(startIndex, endIndex);
-    final after = text.substring(endIndex);
-
-    return RichText(
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      text: TextSpan(
-        style: TextStyle(color: theme.textTheme.bodySmall?.color, fontSize: 12),
-        children: <TextSpan>[
-          TextSpan(text: '...$before'),
-          TextSpan(
-              text: match,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold, backgroundColor: Colors.yellow)),
-          TextSpan(text: after),
-        ],
-      ),
-    );
-  }
-
-  Widget _findFirstMatch(DictionaryEntry entry, String query) {
-    final fields = [
-      ...entry.exampleSentences.map((e) => e['sentence'] ?? ''),
-      ...entry.exampleSentences.map((e) => e['translation'] ?? ''),
-      entry.mainTranslationMeaningEng ?? '',
-      entry.mainTranslationMeaningUzb ?? '',
-      ...entry.translationMeanings,
-    ];
-
-    for (final field in fields) {
-      if (field.toLowerCase().contains(query.toLowerCase())) {
-        return _buildHighlightedSnippet(field, query);
-      }
-    }
-    return Text(entry.mainTranslationWord ?? '',
-        style: const TextStyle(fontSize: 12));
-  }
-
-  Widget _buildSuggestionsView(DictionaryProvider provider) {
-    if (provider.searchStatus == SearchStatus.searching) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (provider.searchStatus == SearchStatus.noResults) {
-      return const Center(child: Text('No results found.'));
-    }
-    if (provider.searchStatus == SearchStatus.error) {
-      return const Center(
-          child: Text('Search error occurred. Please try again.'));
-    }
-    return AnimationLimiter(
-      child: ListView.builder(
-        itemCount: provider.suggestions.length,
-        itemBuilder: (context, index) {
-          final entry = provider.suggestions[index];
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 375),
-            child: SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: ListTile(
-                  title: Text(entry.word),
-                  subtitle: provider.isAdvancedSearch
-                      ? _findFirstMatch(entry, provider.searchQuery)
-                      : null,
-                  onTap: () {
-                    if (provider.isAdvancedSearch) {
-                      provider.selectWord(entry.word, entry.direction);
-                    } else {
-                      provider.selectWordFromSearch(entry.word);
-                    }
-                    provider.setSearchActive(false);
-                    _searchController.clear();
-                  },
+class _SuggestionsView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // This Consumer only rebuilds the suggestions list.
+    return Consumer<DictionaryProvider>(
+      builder: (context, provider, child) {
+        if (provider.searchStatus == SearchStatus.searching) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (provider.searchStatus == SearchStatus.noResults) {
+          return const Center(child: Text('No results found.'));
+        }
+        if (provider.searchStatus == SearchStatus.error) {
+          return const Center(
+              child: Text('Search error occurred. Please try again.'));
+        }
+        return AnimationLimiter(
+          child: ListView.builder(
+            itemCount: provider.suggestions.length,
+            itemBuilder: (context, index) {
+              final entry = provider.suggestions[index];
+              return AnimationConfiguration.staggeredList(
+                position: index,
+                duration: const Duration(milliseconds: 375),
+                child: SlideAnimation(
+                  verticalOffset: 50.0,
+                  child: FadeInAnimation(
+                    child: ListTile(
+                      title: Text(entry.word),
+                      subtitle: _HighlightSubtitle(result: entry),
+                      onTap: () {
+                        provider.selectWordFromSearch(entry.id);
+                        provider.setSearchActive(false);
+                      },
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          );
-        },
-      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
+}
 
-  Widget _buildHistoryView(DictionaryProvider provider) {
-    if (provider.history.isEmpty) {
-      return Center(
-        child: Text(provider.uiLanguage == 'en'
-            ? 'Your search history will appear here.'
-            : 'Sizning qidiruv tarixingiz shu yerda paydo bo\'ladi.'),
+class _HistoryView extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // This Selector only rebuilds the ListView when the list of IDs changes.
+    return Selector<DictionaryProvider, List<int>>(
+      selector: (_, provider) => provider.historyIds,
+      builder: (context, historyIds, child) {
+        final provider =
+            Provider.of<DictionaryProvider>(context, listen: false);
+        if (historyIds.isEmpty) {
+          return Center(
+            child: Text(provider.uiLanguage == 'en'
+                ? 'Your search history will appear here.'
+                : 'Sizning qidiruv tarixingiz shu yerda paydo bo\'ladi.'),
+          );
+        }
+        final bottomPadding = MediaQuery.of(context).padding.bottom;
+        return AnimationLimiter(
+          child: ListView.builder(
+            padding:
+                EdgeInsets.fromLTRB(10.0, 10.0, 10.0, 10.0 + bottomPadding),
+            reverse: true, // This makes the list start from the bottom.
+            itemCount: historyIds.length,
+            itemBuilder: (context, index) {
+              // Access the list directly to get the correct chat-like order.
+              final id = historyIds[index];
+              return AnimationConfiguration.staggeredList(
+                position: index,
+                duration: const Duration(milliseconds: 400),
+                child: SlideAnimation(
+                  verticalOffset: 50.0,
+                  child: FadeInAnimation(
+                    child: FutureBuilder<DictionaryEntry?>(
+                      future: provider.getHistoryEntryById(id),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const SizedBox(height: 120);
+                        }
+                        if (!snapshot.hasData || snapshot.data == null) {
+                          return const SizedBox.shrink();
+                        }
+                        final entry = snapshot.data!;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _UserChatBubble(entry: entry),
+                            _AppChatBubble(entry: entry),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HighlightSubtitle extends StatelessWidget {
+  final SearchResult result;
+  const _HighlightSubtitle({required this.result});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final highlightStyle = TextStyle(
+      backgroundColor: theme.colorScheme.primary.withOpacity(0.2),
+      fontWeight: FontWeight.bold,
+    );
+
+    if (result.contextSnippet != null && result.matchedQuery != null) {
+      final snippet = result.contextSnippet!;
+      final query = result.matchedQuery!;
+      final spans = <TextSpan>[];
+      final lowerSnippet = snippet.toLowerCase();
+      final lowerQuery = query.toLowerCase();
+
+      int lastMatchEnd = 0;
+      int currentMatchStart = lowerSnippet.indexOf(lowerQuery);
+
+      while (currentMatchStart != -1) {
+        if (currentMatchStart > lastMatchEnd) {
+          spans.add(TextSpan(
+              text: snippet.substring(lastMatchEnd, currentMatchStart)));
+        }
+        final matchEnd = currentMatchStart + query.length;
+        spans.add(TextSpan(
+          text: snippet.substring(currentMatchStart, matchEnd),
+          style: highlightStyle,
+        ));
+        lastMatchEnd = matchEnd;
+        currentMatchStart = lowerSnippet.indexOf(lowerQuery, lastMatchEnd);
+      }
+
+      if (lastMatchEnd < snippet.length) {
+        spans.add(TextSpan(text: snippet.substring(lastMatchEnd)));
+      }
+
+      return RichText(
+        text: TextSpan(
+          children: spans,
+          style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       );
     }
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    return AnimationLimiter(
-      child: ListView.builder(
-        padding: EdgeInsets.fromLTRB(10.0, 10.0, 10.0, 10.0 + bottomPadding),
-        reverse: true,
-        itemCount: provider.history.length,
-        itemBuilder: (context, index) {
-          final entry = provider.history[index];
-          return AnimationConfiguration.staggeredList(
-            position: index,
-            duration: const Duration(milliseconds: 400),
-            child: SlideAnimation(
-              verticalOffset: 50.0,
-              child: FadeInAnimation(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildUserChatBubble(entry, provider),
-                    _buildAppChatBubble(entry, provider),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+    return Text(
+      result.translationPreview,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
+}
 
-  Widget _buildUserChatBubble(
-      DictionaryEntry entry, DictionaryProvider provider) {
+class _UserChatBubble extends StatelessWidget {
+  final DictionaryEntry entry;
+  const _UserChatBubble({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<DictionaryProvider>(context, listen: false);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     return Align(
       alignment: Alignment.centerRight,
       child: GestureDetector(
-        onTap: () => provider.selectWord(entry.word, entry.direction),
+        onTap: () => provider.selectWordById(entry.id),
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -459,7 +560,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(15),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.08),
+                color: Colors.black.withAlpha((0.08 * 255).toInt()),
                 spreadRadius: 1,
                 blurRadius: 4,
                 offset: const Offset(0, 2),
@@ -477,11 +578,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
 
-  Widget _buildAppChatBubble(
-      DictionaryEntry entry, DictionaryProvider provider) {
+class _AppChatBubble extends StatelessWidget {
+  final DictionaryEntry entry;
+  const _AppChatBubble({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bool isExpanded = provider.expandedHistoryItemId == entry.id;
     final oppositeDirection =
         entry.direction == 'ENG_UZB' ? 'UZB_ENG' : 'ENG_UZB';
 
@@ -495,107 +600,129 @@ class _HomeScreenState extends State<HomeScreen> {
           borderRadius: BorderRadius.circular(15),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: Colors.black.withAlpha((0.08 * 255).toInt()),
               spreadRadius: 1,
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        // This Consumer ensures only the bubble's content rebuilds on expand/favorite toggle.
+        child: Consumer<DictionaryProvider>(
+          builder: (context, provider, child) {
+            final isExpanded = provider.expandedHistoryItemId == entry.id;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => provider.selectWord(
-                        entry.mainTranslationWord ?? '', oppositeDirection),
-                    child: Text(
-                      entry.mainTranslationWord ?? '...',
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.volume_up_outlined,
-                      color: theme.colorScheme.primary),
-                  onPressed: () {
-                    final langCode =
-                        oppositeDirection == 'ENG_UZB' ? 'en-US' : 'uz-UZ';
-                    provider.speak(entry.mainTranslationWord ?? '', langCode);
-                  },
-                ),
-              ],
-            ),
-            if (entry.partOfSpeech != null)
-              Text(
-                entry.partOfSpeech!,
-                style: TextStyle(
-                    fontStyle: FontStyle.italic, color: Colors.grey.shade500),
-              ),
-            if (entry.pronunciation != null)
-              Text(
-                entry.pronunciation!,
-                style: const TextStyle(),
-              ),
-            _buildMeaningLine('UZB', entry.mainTranslationMeaningUzb),
-            _buildMeaningLine('ENG', entry.mainTranslationMeaningEng),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              child: isExpanded
-                  ? _buildExpandedDetails(entry)
-                  : const SizedBox.shrink(),
-            ),
-            const Divider(height: 8, thickness: 0.5),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.all(4),
-                  icon: Icon(isExpanded ? Icons.unfold_less : Icons.unfold_more,
-                      color: Colors.grey.shade600),
-                  onPressed: () =>
-                      provider.toggleHistoryItemExpansion(entry.id),
-                ),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          if (entry.mainTranslationWord != null) {
+                            provider.selectWord(
+                                entry.mainTranslationWord!, oppositeDirection);
+                          }
+                        },
+                        child: Text(
+                          entry.mainTranslationWord ?? '...',
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.volume_up_outlined,
+                          color: theme.colorScheme.primary),
+                      onPressed: () {
+                        final langCode =
+                            oppositeDirection == 'ENG_UZB' ? 'en-US' : 'uz-UZ';
+                        provider.speak(
+                            entry.mainTranslationWord ?? '', langCode);
+                      },
+                    ),
+                  ],
+                ),
+                if (entry.partOfSpeech != null)
+                  Text(
+                    entry.partOfSpeech!,
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey.shade500),
+                  ),
+                if (entry.pronunciation != null)
+                  Text(
+                    entry.pronunciation!,
+                    style: const TextStyle(),
+                  ),
+                _MeaningLine(
+                    title: 'UZB', text: entry.mainTranslationMeaningUzb),
+                _MeaningLine(
+                    title: 'ENG', text: entry.mainTranslationMeaningEng),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  child: isExpanded
+                      ? _ExpandedDetails(entry: entry)
+                      : const SizedBox.shrink(),
+                ),
+                const Divider(height: 8, thickness: 0.5),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.all(4),
-                      icon: Icon(Icons.delete_outline,
-                          color: Colors.grey.shade600),
-                      onPressed: () => provider.deleteFromHistory(entry),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.all(4),
                       icon: Icon(
-                        entry.isFavorite
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        color: entry.isFavorite
-                            ? Colors.red
-                            : Colors.grey.shade600,
-                      ),
-                      onPressed: () => provider.toggleFavorite(entry),
+                          isExpanded ? Icons.unfold_less : Icons.unfold_more,
+                          color: Colors.grey.shade600),
+                      onPressed: () =>
+                          provider.toggleHistoryItemExpansion(entry.id),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.all(4),
+                          icon: Icon(Icons.delete_outline,
+                              color: Colors.grey.shade600),
+                          onPressed: () => provider.deleteFromHistory(entry.id),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.all(4),
+                          icon: Icon(
+                            entry.isFavorite
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: entry.isFavorite
+                                ? Colors.red
+                                : Colors.grey.shade600,
+                          ),
+                          onPressed: () => provider.toggleFavorite(entry),
+                        )
+                      ],
                     )
                   ],
                 )
               ],
-            )
-          ],
+            );
+          },
         ),
       ),
     );
   }
+}
 
-  Widget _buildMeaningLine(String title, String? text) {
-    if (text == null || text.isEmpty) return const SizedBox.shrink();
+class _MeaningLine extends StatelessWidget {
+  final String title;
+  final String? text;
+  const _MeaningLine({required this.title, this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    if (text == null || text!.isEmpty) return const SizedBox.shrink();
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: 6.0),
@@ -621,15 +748,21 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child:
-                Text(text, style: const TextStyle(fontStyle: FontStyle.italic)),
+            child: Text(text!,
+                style: const TextStyle(fontStyle: FontStyle.italic)),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildExpandedDetails(DictionaryEntry entry) {
+class _ExpandedDetails extends StatelessWidget {
+  final DictionaryEntry entry;
+  const _ExpandedDetails({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
       child: Column(
@@ -686,10 +819,171 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
+
+class _WordDetailView extends StatelessWidget {
+  final DictionaryEntry entry;
+  const _WordDetailView({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<DictionaryProvider>(context, listen: false);
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isEnglish = provider.uiLanguage == 'en';
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + bottomPadding),
+      child: Card(
+        color: Theme.of(context).cardColor,
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Flexible(
+                    child: Text(
+                      entry.word,
+                      style: const TextStyle(
+                          fontSize: 28, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  // This Consumer ensures only the favorite button rebuilds.
+                  Consumer<DictionaryProvider>(
+                    builder: (context, provider, child) {
+                      return Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.volume_up,
+                                size: 30, color: Colors.blue),
+                            onPressed: () {
+                              final langCode = entry.direction == 'ENG_UZB'
+                                  ? 'en-US'
+                                  : 'uz-UZ';
+                              provider.speak(entry.word, langCode);
+                            },
+                          ),
+                          IconButton(
+                            icon: Icon(
+                              entry.isFavorite
+                                  ? Icons.favorite
+                                  : Icons.favorite_border,
+                              color: entry.isFavorite ? Colors.red : null,
+                              size: 30,
+                            ),
+                            onPressed: () => provider.toggleFavorite(entry),
+                          ),
+                        ],
+                      );
+                    },
+                  )
+                ],
+              ),
+              if (entry.pronunciation != null)
+                Text(entry.pronunciation!, style: const TextStyle()),
+              if (entry.partOfSpeech != null)
+                Text(entry.partOfSpeech!,
+                    style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey.shade600)),
+              _buildSection(
+                  context, isEnglish ? 'Main Translation' : 'Asosiy Tarjima', [
+                Text(entry.mainTranslationWord ?? 'N/A',
+                    style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.blue)),
+                _MeaningLine(
+                    title: 'UZB', text: entry.mainTranslationMeaningUzb),
+                _MeaningLine(
+                    title: 'ENG', text: entry.mainTranslationMeaningEng),
+              ]),
+              _buildSection(
+                context,
+                isEnglish ? 'Other Meanings' : 'Boshqa Ma\'nolar',
+                List.generate(entry.translationWords.length, (i) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('• ${entry.translationWords[i]}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        if (i < entry.translationMeanings.length &&
+                            entry.translationMeanings[i].isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16.0),
+                            child: Text(entry.translationMeanings[i],
+                                style: const TextStyle(
+                                    fontStyle: FontStyle.italic)),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+              ),
+              _buildSection(
+                  context, isEnglish ? 'Related Words' : 'Bog\'liq So\'zlar', [
+                Text(isEnglish ? 'Synonyms' : 'Sinonimlar',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                _ChipList(words: entry.synonyms),
+                const SizedBox(height: 12),
+                Text(isEnglish ? 'Antonyms' : 'Antonimlar',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                _ChipList(words: entry.antonyms),
+              ]),
+              _buildSection(context, isEnglish ? 'Frequency' : 'Takroriylik',
+                  [_FrequencyChart(frequency: entry.frequency)]),
+              _buildSection(
+                context,
+                isEnglish ? 'Example Sentences' : 'Misol Jumlalar',
+                entry.exampleSentences
+                    .map((ex) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('• ${ex["sentence"] ?? ""}'),
+                              Padding(
+                                padding:
+                                    const EdgeInsets.only(left: 16.0, top: 2.0),
+                                child: Text(ex["translation"] ?? "",
+                                    style:
+                                        TextStyle(color: Colors.grey.shade600)),
+                              ),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.arrow_back),
+                  label:
+                      Text(isEnglish ? 'Back to History' : 'Tarixga Qaytish'),
+                  onPressed: () => provider.selectWordById(0),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildSection(
       BuildContext context, String title, List<Widget> children) {
-    if (children.isEmpty) return const SizedBox.shrink();
+    if (children.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -701,18 +995,31 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+}
 
-  Widget _buildChipList(List<String> words) {
-    if (words.isEmpty)
+class _ChipList extends StatelessWidget {
+  final List<String> words;
+  const _ChipList({required this.words});
+
+  @override
+  Widget build(BuildContext context) {
+    if (words.isEmpty) {
       return const Text('N/A', style: TextStyle(fontStyle: FontStyle.italic));
+    }
     return Wrap(
       spacing: 8.0,
       runSpacing: 4.0,
       children: words.map((word) => Chip(label: Text(word))).toList(),
     );
   }
+}
 
-  Widget _buildFrequencyChart(BuildContext context, List<int> frequency) {
+class _FrequencyChart extends StatelessWidget {
+  final List<int> frequency;
+  const _FrequencyChart({required this.frequency});
+
+  @override
+  Widget build(BuildContext context) {
     final isEnglish =
         Provider.of<DictionaryProvider>(context, listen: false).uiLanguage ==
             'en';
@@ -770,157 +1077,5 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }),
     );
-  }
-
-  Widget _buildWordDetailView(
-      DictionaryEntry entry, DictionaryProvider provider) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    final isEnglish = provider.uiLanguage == 'en';
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + bottomPadding),
-      child: Card(
-        color: Theme.of(context).cardColor,
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Flexible(
-                    child: Text(
-                      entry.word,
-                      style: const TextStyle(
-                          fontSize: 28, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.volume_up,
-                            size: 30, color: Colors.blue),
-                        onPressed: () {
-                          final langCode =
-                              entry.direction == 'ENG_UZB' ? 'en-US' : 'uz-UZ';
-                          provider.speak(entry.word, langCode);
-                        },
-                      ),
-                      IconButton(
-                        icon: Icon(
-                          entry.isFavorite
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color: entry.isFavorite ? Colors.red : null,
-                          size: 30,
-                        ),
-                        onPressed: () => provider.toggleFavorite(entry),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (entry.pronunciation != null)
-                Text(entry.pronunciation!, style: const TextStyle()),
-              if (entry.partOfSpeech != null)
-                Text(entry.partOfSpeech!,
-                    style: TextStyle(
-                        fontStyle: FontStyle.italic,
-                        color: Colors.grey.shade600)),
-              _buildSection(
-                  context, isEnglish ? 'Main Translation' : 'Asosiy Tarjima', [
-                Text(entry.mainTranslationWord ?? 'N/A',
-                    style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.blue)),
-                _buildMeaningLine('UZB', entry.mainTranslationMeaningUzb),
-                _buildMeaningLine('ENG', entry.mainTranslationMeaningEng),
-              ]),
-              _buildSection(
-                context,
-                isEnglish ? 'Other Meanings' : 'Boshqa Ma\'nolar',
-                List.generate(entry.translationWords.length, (i) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('• ${entry.translationWords[i]}',
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
-                        if (i < entry.translationMeanings.length &&
-                            entry.translationMeanings[i].isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16.0),
-                            child: Text(entry.translationMeanings[i],
-                                style: const TextStyle(
-                                    fontStyle: FontStyle.italic)),
-                          ),
-                      ],
-                    ),
-                  );
-                }),
-              ),
-              _buildSection(
-                  context, isEnglish ? 'Related Words' : 'Bog\'liq So\'zlar', [
-                Text(isEnglish ? 'Synonyms' : 'Sinonimlar',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                _buildChipList(entry.synonyms),
-                const SizedBox(height: 12),
-                Text(isEnglish ? 'Antonyms' : 'Antonimlar',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                _buildChipList(entry.antonyms),
-              ]),
-              _buildSection(context, isEnglish ? 'Frequency' : 'Takroriylik',
-                  [_buildFrequencyChart(context, entry.frequency)]),
-              _buildSection(
-                context,
-                isEnglish ? 'Example Sentences' : 'Misol Jumlalar',
-                entry.exampleSentences
-                    .map((ex) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('• ${ex["sentence"] ?? ""}'),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(left: 16.0, top: 2.0),
-                                child: Text(ex["translation"] ?? "",
-                                    style:
-                                        TextStyle(color: Colors.grey.shade600)),
-                              ),
-                            ],
-                          ),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  icon: const Icon(Icons.arrow_back),
-                  label:
-                      Text(isEnglish ? 'Back to History' : 'Tarixga Qaytish'),
-                  onPressed: () => provider.selectWord('', ''),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-extension StringExtension on String {
-  String capitalize() {
-    if (isEmpty) return "";
-    return "${this[0].toUpperCase()}${substring(1)}";
   }
 }

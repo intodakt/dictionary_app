@@ -1,7 +1,13 @@
+// UPDATE 5
+// lib/widgets/app_drawer.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/dictionary_provider.dart';
-import '../providers/download_provider.dart'; // Add this import
+import '../providers/download_provider.dart';
+import '../providers/game_provider.dart';
+import '../providers/hangman_provider.dart';
+import '../providers/theme_provider.dart'; // Import the new provider
+import '../providers/word_puzzle_provider.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/about_screen.dart';
 import '../screens/guess_it_screen.dart';
@@ -14,17 +20,14 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<DictionaryProvider, DownloadProvider>(
-      builder: (context, provider, downloadProvider, child) {
-        final isEnglish = provider.uiLanguage == 'en';
+    // Now consuming ThemeProvider as well to get theme data and actions.
+    return Consumer3<DictionaryProvider, DownloadProvider, ThemeProvider>(
+      builder: (context, dictProvider, downloadProvider, themeProvider, child) {
+        final isEnglish = dictProvider.uiLanguage == 'en';
         const drawerTextStyle = TextStyle(fontSize: 14);
 
-        // Download status information
         final isDownloading =
             downloadProvider.status == DownloadStatus.downloading;
-        final hasFullVersion =
-            downloadProvider.status == DownloadStatus.alreadyExists;
-        final isDownloadError = downloadProvider.status == DownloadStatus.error;
 
         return Drawer(
           child: SafeArea(
@@ -53,11 +56,13 @@ class AppDrawer extends StatelessWidget {
                   leading: const Icon(Icons.translate),
                   title: Text(isEnglish ? 'App Language' : 'Ilova Tili',
                       style: drawerTextStyle),
-                  trailing: Text(provider.uiLanguage.toUpperCase()),
+                  trailing: Text(dictProvider.uiLanguage.toUpperCase()),
                   onTap: isDownloading
                       ? null
                       : () {
-                          provider.toggleUiLanguage();
+                          final newLang =
+                              dictProvider.uiLanguage == 'en' ? 'uz' : 'en';
+                          dictProvider.setUiLanguage(newLang);
                         },
                 ),
                 ListTile(
@@ -65,21 +70,17 @@ class AppDrawer extends StatelessWidget {
                   title: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(provider.direction.split('_')[0],
+                      Text(dictProvider.direction.split('_')[0],
                           style: drawerTextStyle),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 4.0),
                         child: Text("-", style: TextStyle(fontSize: 20)),
                       ),
-                      Text(provider.direction.split('_')[1],
+                      Text(dictProvider.direction.split('_')[1],
                           style: drawerTextStyle),
                     ],
                   ),
-                  onTap: isDownloading
-                      ? null
-                      : () {
-                          provider.toggleDirection();
-                        },
+                  onTap: isDownloading ? null : dictProvider.toggleDirection,
                 ),
                 ListTile(
                   leading: const Icon(Icons.favorite_border),
@@ -95,16 +96,17 @@ class AppDrawer extends StatelessWidget {
                   },
                 ),
                 const Divider(),
+                // Dark Mode switch now uses the dedicated ThemeProvider.
                 SwitchListTile(
                   title: Text(isEnglish ? 'Dark Mode' : 'Tungi Rejim',
                       style: drawerTextStyle),
-                  value: provider.themeMode == ThemeMode.dark,
+                  value: themeProvider.themeMode == ThemeMode.dark,
                   onChanged: isDownloading
                       ? null
                       : (value) {
-                          provider.toggleTheme();
+                          themeProvider.toggleTheme();
                         },
-                  secondary: Icon(provider.themeMode == ThemeMode.dark
+                  secondary: Icon(themeProvider.themeMode == ThemeMode.dark
                       ? Icons.dark_mode_outlined
                       : Icons.light_mode_outlined),
                 ),
@@ -112,11 +114,11 @@ class AppDrawer extends StatelessWidget {
                   title: Text(
                       isEnglish ? 'Advanced Search' : 'Kengaytirilgan Qidiruv',
                       style: drawerTextStyle),
-                  value: provider.isAdvancedSearch,
+                  value: dictProvider.isAdvancedSearch,
                   onChanged: isDownloading
                       ? null
                       : (value) {
-                          provider.toggleAdvancedSearch();
+                          dictProvider.toggleAdvancedSearch();
                           if (value) {
                             _showAdvancedSearchInfo(context, isEnglish);
                           }
@@ -137,7 +139,11 @@ class AppDrawer extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const WordPuzzleScreen()),
+                        builder: (context) => ChangeNotifierProvider(
+                          create: (_) => WordPuzzleProvider()..init(),
+                          child: const WordPuzzleScreen(),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -149,7 +155,11 @@ class AppDrawer extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const GuessItScreen()),
+                        builder: (context) => ChangeNotifierProvider(
+                          create: (_) => GameProvider()..init(),
+                          child: const GuessItScreen(),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -161,17 +171,17 @@ class AppDrawer extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const HangmanScreen()),
+                        builder: (context) => ChangeNotifierProvider(
+                          create: (_) => HangmanProvider()..init(),
+                          child: const HangmanScreen(),
+                        ),
+                      ),
                     );
                   },
                 ),
                 const Divider(),
-
-                // Enhanced Download ListTile with status and progress
-                _buildDownloadListTile(context, provider, downloadProvider,
+                _buildDownloadListTile(context, dictProvider, downloadProvider,
                     isEnglish, drawerTextStyle),
-
-                // Show progress indicator during download
                 if (isDownloading)
                   Padding(
                     padding: const EdgeInsets.symmetric(
@@ -191,29 +201,6 @@ class AppDrawer extends StatelessWidget {
                       ],
                     ),
                   ),
-
-                // Show error message if download failed
-                if (isDownloadError && downloadProvider.errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: Column(
-                      children: [
-                        Text(
-                          isEnglish ? 'Download failed' : 'Yuklab olish xato',
-                          style:
-                              const TextStyle(color: Colors.red, fontSize: 12),
-                        ),
-                        TextButton(
-                          onPressed: () => downloadProvider.retryDownload(),
-                          child: Text(
-                            isEnglish ? 'Retry' : 'Qaytadan urining',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
                 ListTile(
                   leading: const Icon(Icons.info_outline),
                   title: Text(isEnglish ? 'About' : 'Ilova Haqida',
@@ -261,7 +248,7 @@ class AppDrawer extends StatelessWidget {
       );
       title = isEnglish ? 'Downloading...' : 'Yuklab olinmoqda...';
       subtitle = '${(downloadProvider.progress * 100).toInt()}%';
-      onTap = null; // Disable tap during download
+      onTap = null;
     } else if (hasFullVersion) {
       leadingIcon = const Icon(Icons.check_circle, color: Colors.green);
       title = isEnglish ? 'Full Version Ready' : 'To\'liq Versiya Tayyor';
