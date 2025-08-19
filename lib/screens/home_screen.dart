@@ -1,4 +1,4 @@
-// UPDATE 14
+// UPDATE 25
 // lib/screens/home_screen.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -15,20 +15,25 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // We use a provider here just to get the initial value for PopScope.
-    final provider = Provider.of<DictionaryProvider>(context, listen: false);
-    return PopScope(
-      canPop: provider.selectedWord == null,
-      onPopInvoked: (bool didPop) {
-        if (didPop) return;
-        // The action is now handled within the _HomeBody widget.
-        // This PopScope is mainly for initial setup. A second one in _HomeBody
-        // will handle the dynamic state changes.
+    // This top-level PopScope handles the search active state.
+    return Consumer<DictionaryProvider>(
+      builder: (context, provider, child) {
+        return PopScope(
+          canPop: !provider.isSearchActive,
+          onPopInvoked: (bool didPop) {
+            if (didPop) return;
+            if (provider.isSearchActive) {
+              provider.setSearchActive(false);
+            }
+          },
+          child: child!,
+        );
       },
       child: const Scaffold(
-        appBar: _HomeAppBar(), // The AppBar is now its own widget.
+        drawerScrimColor: Colors.transparent, // This removes the dark overlay.
+        appBar: _HomeAppBar(),
         drawer: AppDrawer(),
-        body: _HomeBody(), // The Body is now its own widget.
+        body: _HomeBody(),
       ),
     );
   }
@@ -229,8 +234,7 @@ class _HomeBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Using a Selector to only rebuild when these specific values change.
-    // This prevents rebuilds from minor UI changes like expanding a history item.
+    // This Selector only rebuilds when these specific values change.
     return Selector<DictionaryProvider, (bool, DictionaryEntry?)>(
       selector: (_, provider) =>
           (provider.isSearchActive, provider.selectedWord),
@@ -240,6 +244,7 @@ class _HomeBody extends StatelessWidget {
         final provider =
             Provider.of<DictionaryProvider>(context, listen: false);
 
+        // This inner PopScope handles the selected word state.
         return PopScope(
           canPop: selectedWord == null,
           onPopInvoked: (bool didPop) {
@@ -250,8 +255,6 @@ class _HomeBody extends StatelessWidget {
           },
           child: Builder(
             builder: (context) {
-              // We still need to listen to download status here.
-              // A Consumer is fine as this part of the tree is simple.
               return Consumer<DownloadProvider>(
                 builder: (context, downloadProvider, _) {
                   if (downloadProvider.status == DownloadStatus.downloading) {
@@ -282,8 +285,6 @@ class _HomeBody extends StatelessWidget {
   }
 
   // --- View Builder Methods ---
-  // These are now static methods to emphasize they don't depend on the build context of _HomeBody.
-
   static Widget _buildDownloadProgressView(DownloadProvider downloadProvider) {
     return Center(
       child: Padding(
@@ -376,7 +377,6 @@ class _HomeBody extends StatelessWidget {
 class _SuggestionsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // This Consumer only rebuilds the suggestions list.
     return Consumer<DictionaryProvider>(
       builder: (context, provider, child) {
         if (provider.searchStatus == SearchStatus.searching) {
@@ -422,7 +422,6 @@ class _SuggestionsView extends StatelessWidget {
 class _HistoryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    // This Selector only rebuilds the ListView when the list of IDs changes.
     return Selector<DictionaryProvider, List<int>>(
       selector: (_, provider) => provider.historyIds,
       builder: (context, historyIds, child) {
@@ -440,10 +439,9 @@ class _HistoryView extends StatelessWidget {
           child: ListView.builder(
             padding:
                 EdgeInsets.fromLTRB(10.0, 10.0, 10.0, 10.0 + bottomPadding),
-            reverse: true, // This makes the list start from the bottom.
+            reverse: true,
             itemCount: historyIds.length,
             itemBuilder: (context, index) {
-              // Access the list directly to get the correct chat-like order.
               final id = historyIds[index];
               return AnimationConfiguration.staggeredList(
                 position: index,
@@ -607,7 +605,6 @@ class _AppChatBubble extends StatelessWidget {
             ),
           ],
         ),
-        // This Consumer ensures only the bubble's content rebuilds on expand/favorite toggle.
         child: Consumer<DictionaryProvider>(
           builder: (context, provider, child) {
             final isExpanded = provider.expandedHistoryItemId == entry.id;

@@ -1,3 +1,4 @@
+// UPDATE 18
 // lib/providers/download_provider.dart
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -26,7 +27,14 @@ class DownloadProvider with ChangeNotifier {
 
   DownloadProvider(this._dictionaryProvider);
 
-  Future<void> init() async {
+  // The init method is now synchronous and non-blocking.
+  void init() {
+    // Run the file checks in the background without awaiting them.
+    // This allows the UI to load immediately.
+    _runInitialChecks();
+  }
+
+  Future<void> _runInitialChecks() async {
     await _cleanupIncompleteDownloads();
     await _checkIfDbExists();
   }
@@ -53,11 +61,17 @@ class DownloadProvider with ChangeNotifier {
   }
 
   Future<void> _checkIfDbExists() async {
-    final documentsDirectory = await getApplicationDocumentsDirectory();
-    final fullDbPath = join(documentsDirectory.path, 'dictionary.db');
-    if (await File(fullDbPath).exists()) {
-      _status = DownloadStatus.alreadyExists;
-      notifyListeners();
+    try {
+      final documentsDirectory = await getApplicationDocumentsDirectory();
+      final fullDbPath = join(documentsDirectory.path, 'dictionary.db');
+      if (await File(fullDbPath).exists()) {
+        _status = DownloadStatus.alreadyExists;
+        notifyListeners();
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("DOWNLOAD_PROVIDER: Error checking for DB: $e");
+      }
     }
   }
 

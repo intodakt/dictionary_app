@@ -1,12 +1,13 @@
-// UPDATE 5
+// UPDATE 27
 // lib/widgets/app_drawer.dart
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/dictionary_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/game_provider.dart';
 import '../providers/hangman_provider.dart';
-import '../providers/theme_provider.dart'; // Import the new provider
+import '../providers/theme_provider.dart';
 import '../providers/word_puzzle_provider.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/about_screen.dart';
@@ -20,202 +21,291 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Now consuming ThemeProvider as well to get theme data and actions.
     return Consumer3<DictionaryProvider, DownloadProvider, ThemeProvider>(
       builder: (context, dictProvider, downloadProvider, themeProvider, child) {
         final isEnglish = dictProvider.uiLanguage == 'en';
         const drawerTextStyle = TextStyle(fontSize: 14);
-
+        const compactDensity = VisualDensity(vertical: -2);
         final isDownloading =
             downloadProvider.status == DownloadStatus.downloading;
+        final isDark = themeProvider.themeMode == ThemeMode.dark;
 
         return Drawer(
-          child: SafeArea(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: <Widget>[
-                DrawerHeader(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          child: Stack(
+            children: [
+              // Glassmorphism Effect
+              BackdropFilter(
+                filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+                child: Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                  ),
-                  child: const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Hoshiya',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                    color: isDark
+                        ? Colors.white.withOpacity(0.08)
+                        : Colors.black.withOpacity(0.08),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.translate),
-                  title: Text(isEnglish ? 'App Language' : 'Ilova Tili',
-                      style: drawerTextStyle),
-                  trailing: Text(dictProvider.uiLanguage.toUpperCase()),
-                  onTap: isDownloading
-                      ? null
-                      : () {
-                          final newLang =
-                              dictProvider.uiLanguage == 'en' ? 'uz' : 'en';
-                          dictProvider.setUiLanguage(newLang);
-                        },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.cached),
-                  title: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(dictProvider.direction.split('_')[0],
-                          style: drawerTextStyle),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4.0),
-                        child: Text("-", style: TextStyle(fontSize: 20)),
+              ),
+              // Drawer Content
+              SafeArea(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: <Widget>[
+                    DrawerHeader(
+                      padding: EdgeInsets.zero, // Remove padding for the image
+                      decoration: const BoxDecoration(
+                        color: Colors.transparent,
                       ),
-                      Text(dictProvider.direction.split('_')[1],
-                          style: drawerTextStyle),
-                    ],
-                  ),
-                  onTap: isDownloading ? null : dictProvider.toggleDirection,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.favorite_border),
-                  title: Text(isEnglish ? 'Favourites' : 'Sevimlilar',
-                      style: drawerTextStyle),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const FavoritesScreen()),
-                    );
-                  },
-                ),
-                const Divider(),
-                // Dark Mode switch now uses the dedicated ThemeProvider.
-                SwitchListTile(
-                  title: Text(isEnglish ? 'Dark Mode' : 'Tungi Rejim',
-                      style: drawerTextStyle),
-                  value: themeProvider.themeMode == ThemeMode.dark,
-                  onChanged: isDownloading
-                      ? null
-                      : (value) {
-                          themeProvider.toggleTheme();
-                        },
-                  secondary: Icon(themeProvider.themeMode == ThemeMode.dark
-                      ? Icons.dark_mode_outlined
-                      : Icons.light_mode_outlined),
-                ),
-                SwitchListTile(
-                  title: Text(
-                      isEnglish ? 'Advanced Search' : 'Kengaytirilgan Qidiruv',
-                      style: drawerTextStyle),
-                  value: dictProvider.isAdvancedSearch,
-                  onChanged: isDownloading
-                      ? null
-                      : (value) {
-                          dictProvider.toggleAdvancedSearch();
-                          if (value) {
-                            _showAdvancedSearchInfo(context, isEnglish);
-                          }
-                        },
-                  secondary: const Icon(Icons.manage_search_outlined),
-                ),
-                const Divider(),
-                ListTile(
-                  title: Text(isEnglish ? 'Games' : 'O\'yinlar',
-                      style: drawerTextStyle.copyWith(
-                          fontWeight: FontWeight.bold, color: Colors.grey)),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.grid_on),
-                  title: const Text('Fiftinity', style: drawerTextStyle),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChangeNotifierProvider(
-                          create: (_) => WordPuzzleProvider()..init(),
-                          child: const WordPuzzleScreen(),
-                        ),
+                      child: Stack(
+                        children: [
+                          // Banner Image
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.only(
+                                topRight: Radius.circular(12.0),
+                              ),
+                              child: Image.asset(
+                                isDark
+                                    ? 'assets/drawer_banner_dark.png'
+                                    : 'assets/drawer_banner_light.png',
+                                fit: BoxFit.cover,
+                                // Error handling for missing images
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    color: isDark
+                                        ? Colors.grey.shade800
+                                        : Colors.grey.shade300,
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.image_not_supported,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          // Gradient Overlay for Text Legibility
+                          Positioned.fill(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withOpacity(0.7)
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  stops: const [
+                                    0.6,
+                                    1.0
+                                  ], // Gradient starts at the halfway point
+                                ),
+                              ),
+                            ),
+                          ),
+                          // App Name Text
+                          const Positioned(
+                            bottom: 8.0,
+                            left: 16.0,
+                            child: Text(
+                              'Hoshiya',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 4.0,
+                                    color: Colors.black54,
+                                    offset: Offset(1.0, 1.0),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.extension_outlined),
-                  title: const Text('Worder', style: drawerTextStyle),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChangeNotifierProvider(
-                          create: (_) => GameProvider()..init(),
-                          child: const GuessItScreen(),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.gamepad_outlined),
-                  title: const Text('The Hangman', style: drawerTextStyle),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChangeNotifierProvider(
-                          create: (_) => HangmanProvider()..init(),
-                          child: const HangmanScreen(),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(),
-                _buildDownloadListTile(context, dictProvider, downloadProvider,
-                    isEnglish, drawerTextStyle),
-                if (isDownloading)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0, vertical: 8.0),
-                    child: Column(
-                      children: [
-                        LinearProgressIndicator(
-                          value: downloadProvider.progress,
-                          backgroundColor: Colors.grey[300],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${(downloadProvider.progress * 100).toInt()}%',
-                          style:
-                              const TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ],
                     ),
-                  ),
-                ListTile(
-                  leading: const Icon(Icons.info_outline),
-                  title: Text(isEnglish ? 'About' : 'Ilova Haqida',
-                      style: drawerTextStyle),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const AboutScreen()),
-                    );
-                  },
+                    ListTile(
+                      visualDensity: compactDensity,
+                      leading: const Icon(Icons.translate),
+                      title: Text(isEnglish ? 'App Language' : 'Ilova Tili',
+                          style: drawerTextStyle),
+                      trailing: Text(dictProvider.uiLanguage.toUpperCase()),
+                      onTap: isDownloading
+                          ? null
+                          : () {
+                              final newLang =
+                                  dictProvider.uiLanguage == 'en' ? 'uz' : 'en';
+                              dictProvider.setUiLanguage(newLang);
+                            },
+                    ),
+                    ListTile(
+                      visualDensity: compactDensity,
+                      leading: const Icon(Icons.cached),
+                      title: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(dictProvider.direction.split('_')[0],
+                              style: drawerTextStyle),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4.0),
+                            child: Text("-", style: TextStyle(fontSize: 20)),
+                          ),
+                          Text(dictProvider.direction.split('_')[1],
+                              style: drawerTextStyle),
+                        ],
+                      ),
+                      onTap:
+                          isDownloading ? null : dictProvider.toggleDirection,
+                    ),
+                    ListTile(
+                      visualDensity: compactDensity,
+                      leading: const Icon(Icons.favorite_border),
+                      title: Text(isEnglish ? 'Favourites' : 'Sevimlilar',
+                          style: drawerTextStyle),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const FavoritesScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(),
+                    SwitchListTile(
+                      visualDensity: compactDensity,
+                      title: Text(isEnglish ? 'Dark Mode' : 'Tungi Rejim',
+                          style: drawerTextStyle),
+                      value: themeProvider.themeMode == ThemeMode.dark,
+                      onChanged: isDownloading
+                          ? null
+                          : (value) {
+                              themeProvider.toggleTheme();
+                            },
+                      secondary: Icon(themeProvider.themeMode == ThemeMode.dark
+                          ? Icons.dark_mode_outlined
+                          : Icons.light_mode_outlined),
+                    ),
+                    SwitchListTile(
+                      visualDensity: compactDensity,
+                      title: Text(
+                          isEnglish
+                              ? 'Advanced Search'
+                              : 'Kengaytirilgan Qidiruv',
+                          style: drawerTextStyle),
+                      value: dictProvider.isAdvancedSearch,
+                      onChanged: isDownloading
+                          ? null
+                          : (value) {
+                              dictProvider.toggleAdvancedSearch();
+                              if (value) {
+                                _showAdvancedSearchInfo(context, isEnglish);
+                              }
+                            },
+                      secondary: const Icon(Icons.manage_search_outlined),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      visualDensity: compactDensity,
+                      title: Text(isEnglish ? 'Games' : 'O\'yinlar',
+                          style: drawerTextStyle.copyWith(
+                              fontWeight: FontWeight.bold, color: Colors.grey)),
+                    ),
+                    ListTile(
+                      visualDensity: compactDensity,
+                      leading: const Icon(Icons.grid_on),
+                      title: const Text('Fiftinity', style: drawerTextStyle),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChangeNotifierProvider(
+                              create: (_) => WordPuzzleProvider()..init(),
+                              child: const WordPuzzleScreen(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      visualDensity: compactDensity,
+                      leading: const Icon(Icons.extension_outlined),
+                      title: const Text('Worder', style: drawerTextStyle),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChangeNotifierProvider(
+                              create: (_) => GameProvider()..init(),
+                              child: const GuessItScreen(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      visualDensity: compactDensity,
+                      leading: const Icon(Icons.gamepad_outlined),
+                      title: const Text('The Hangman', style: drawerTextStyle),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChangeNotifierProvider(
+                              create: (_) => HangmanProvider()..init(),
+                              child: const HangmanScreen(),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(),
+                    _buildDownloadListTile(context, dictProvider,
+                        downloadProvider, isEnglish, drawerTextStyle),
+                    if (isDownloading)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 8.0),
+                        child: Column(
+                          children: [
+                            LinearProgressIndicator(
+                              value: downloadProvider.progress,
+                              backgroundColor: Colors.grey[300],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${(downloadProvider.progress * 100).toInt()}%',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ListTile(
+                      visualDensity: compactDensity,
+                      leading: const Icon(Icons.info_outline),
+                      title: Text(isEnglish ? 'About' : 'Ilova Haqida',
+                          style: drawerTextStyle),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => const AboutScreen()),
+                        );
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -290,6 +380,7 @@ class AppDrawer extends StatelessWidget {
     }
 
     return ListTile(
+      visualDensity: const VisualDensity(vertical: -2),
       leading: leadingIcon,
       title: Text(title, style: drawerTextStyle),
       subtitle: subtitle != null

@@ -1,4 +1,4 @@
-// UPDATE 5
+// UPDATE 17
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,11 +6,16 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/dictionary_provider.dart';
 import 'providers/download_provider.dart';
-import 'providers/theme_provider.dart'; // Import the new provider
+import 'providers/theme_provider.dart';
 import 'screens/home_screen.dart';
+import 'utils/database_helper.dart'; // Import DatabaseHelper
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Eagerly initialize the database helper.
+  DatabaseHelper.initialize();
+
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -32,7 +37,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // The new ThemeProvider is provided at the top level.
         ChangeNotifierProvider(
           create: (context) =>
               ThemeProvider(initialThemeMode: initialThemeMode),
@@ -40,20 +44,13 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (context) => DictionaryProvider()..init(),
         ),
-        ChangeNotifierProxyProvider<DictionaryProvider, DownloadProvider>(
-          create: (context) {
-            final dictionaryProvider =
-                Provider.of<DictionaryProvider>(context, listen: false);
-            return DownloadProvider(dictionaryProvider)..init();
-          },
-          update: (context, dictionaryProvider, previousDownloadProvider) {
-            return previousDownloadProvider ??
-                DownloadProvider(dictionaryProvider)
-              ..init();
-          },
+        // Simplified the DownloadProvider setup.
+        ChangeNotifierProvider(
+          create: (context) => DownloadProvider(
+            Provider.of<DictionaryProvider>(context, listen: false),
+          )..init(),
         ),
       ],
-      // The Consumer now listens ONLY to ThemeProvider.
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
           return MaterialApp(
@@ -104,7 +101,6 @@ class MyApp extends StatelessWidget {
               cardColor: Colors.black,
               useMaterial3: true,
             ),
-            // The themeMode is now sourced from the dedicated ThemeProvider.
             themeMode: themeProvider.themeMode,
             debugShowCheckedModeBanner: false,
             home: const HomeScreen(),

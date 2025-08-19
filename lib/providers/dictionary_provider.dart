@@ -1,4 +1,4 @@
-// UPDATE 14
+// UPDATE 19
 // lib/providers/dictionary_provider.dart
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -79,6 +79,7 @@ class DictionaryProvider with ChangeNotifier {
     _direction = prefs.getString('direction') ?? 'ENG_UZB';
     _uiLanguage = prefs.getString('ui_language') ?? 'en';
     _isAdvancedSearch = prefs.getBool('advanced_search') ?? false;
+
     await _loadHistoryIds();
     await _loadFavoriteIds();
     notifyListeners();
@@ -130,6 +131,85 @@ class DictionaryProvider with ChangeNotifier {
     _searchTimer = Timer(_searchDelay, () => _performSearch(query));
   }
 
+  // --- Cyrillic Transliteration Logic ---
+  static const Map<String, String> rusToUz = {
+    "а": "a",
+    "б": "b",
+    "в": "v",
+    "г": "g",
+    "д": "d",
+    "е": "e",
+    "ё": "yo",
+    "ж": "j",
+    "з": "z",
+    "и": "i",
+    "й": "y",
+    "к": "k",
+    "л": "l",
+    "м": "m",
+    "н": "n",
+    "о": "o",
+    "п": "p",
+    "р": "r",
+    "с": "s",
+    "т": "t",
+    "у": "u",
+    "ф": "f",
+    "х": "x",
+    "ц": "s",
+    "ч": "ch",
+    "ш": "sh",
+    "щ": "sh",
+    "ъ": "ʼ",
+    "ы": "i",
+    "ь": "",
+    "э": "e",
+    "ю": "yu",
+    "я": "ya",
+    "А": "A",
+    "Б": "B",
+    "В": "V",
+    "Г": "G",
+    "Д": "D",
+    "Е": "E",
+    "Ё": "Yo",
+    "Ж": "J",
+    "З": "Z",
+    "И": "I",
+    "Й": "Y",
+    "К": "K",
+    "Л": "L",
+    "М": "M",
+    "Н": "N",
+    "О": "O",
+    "П": "P",
+    "Р": "R",
+    "С": "S",
+    "Т": "T",
+    "У": "U",
+    "Ф": "F",
+    "Х": "X",
+    "Ц": "S",
+    "Ч": "Ch",
+    "Ш": "Sh",
+    "Щ": "Sh",
+    "Ъ": "ʼ",
+    "Ы": "I",
+    "Ь": "",
+    "Э": "E",
+    "Ю": "Yu",
+    "Я": "Ya"
+  };
+
+  String _transliterate(String text) {
+    String result = "";
+    for (int i = 0; i < text.length; i++) {
+      result += rusToUz[text[i]] ?? text[i];
+    }
+    return result;
+  }
+  // --- End Transliteration Logic ---
+
   String? _findContextSnippet(DictionaryEntry entry, String query) {
     final lowerQuery = query.toLowerCase();
 
@@ -163,9 +243,9 @@ class DictionaryProvider with ChangeNotifier {
   }
 
   Future<void> _performSearch(String query) async {
-    final trimmedQuery = query.trim();
+    final transliteratedQuery = _transliterate(query.trim());
 
-    if (trimmedQuery.length < 2) {
+    if (transliteratedQuery.length < 2) {
       _suggestions = [];
       _searchStatus = SearchStatus.idle;
       notifyListeners();
@@ -178,19 +258,20 @@ class DictionaryProvider with ChangeNotifier {
     try {
       if (_isAdvancedSearch) {
         final results =
-            await _dbHelper.advancedSearch(trimmedQuery, _direction);
+            await _dbHelper.advancedSearch(transliteratedQuery, _direction);
         _suggestions = results.map((entry) {
-          final context = _findContextSnippet(entry, trimmedQuery);
+          final context = _findContextSnippet(entry, transliteratedQuery);
           return SearchResult(
             id: entry.id,
             word: entry.word,
             translationPreview: entry.mainTranslationWord ?? '',
             contextSnippet: context,
-            matchedQuery: trimmedQuery,
+            matchedQuery: transliteratedQuery,
           );
         }).toList();
       } else {
-        _suggestions = await _dbHelper.fastSearch(trimmedQuery, _direction);
+        _suggestions =
+            await _dbHelper.fastSearch(transliteratedQuery, _direction);
       }
       _searchStatus = _suggestions.isEmpty
           ? SearchStatus.noResults

@@ -1,4 +1,4 @@
-// UPDATE 1
+// UPDATE 17
 // lib/utils/database_helper.dart
 import 'dart:io';
 import 'dart:math';
@@ -18,14 +18,30 @@ class DatabaseHelper {
   static Database? _searchDb;
   static Database? _fullDb;
 
-  // Lazily initialize databases when they are first requested.
+  // A Future that completes when both databases are initialized.
+  static Future<void>? _initFuture;
+
+  // Eagerly start the initialization process.
+  static void initialize() {
+    _initFuture ??= _instance._initDatabases();
+  }
+
+  Future<void> _initDatabases() async {
+    // Initialize both databases concurrently.
+    await Future.wait([
+      _initSearchDatabase(),
+      _initFullDatabase(),
+    ]);
+  }
+
+  // The getters now await the single initialization Future.
   Future<Database> get searchDatabase async {
-    _searchDb ??= await _initSearchDatabase();
+    await (_initFuture ??= _initDatabases());
     return _searchDb!;
   }
 
   Future<Database> get fullDatabase async {
-    _fullDb ??= await _initFullDatabase();
+    await (_initFuture ??= _initDatabases());
     return _fullDb!;
   }
 
@@ -39,14 +55,18 @@ class DatabaseHelper {
       await _fullDb!.close();
       _fullDb = null;
     }
+    // Reset the initialization future.
+    _initFuture = null;
+    // Re-initialize immediately.
+    initialize();
     if (kDebugMode) {
       print("DB_HELPER: All databases reinitialized");
     }
   }
 
   /// Initializes the search database using the centralized helper method.
-  Future<Database> _initSearchDatabase() async {
-    return _openDatabase(
+  Future<void> _initSearchDatabase() async {
+    _searchDb = await _openDatabase(
       liteDbName: 'search_index_lite.db',
       assetDbName: 'search_index_lite.db', // Asset name for the lite version
       fullDbName: 'search_index_full.db', // Downloaded full version name
@@ -55,8 +75,8 @@ class DatabaseHelper {
   }
 
   /// Initializes the full dictionary database using the centralized helper method.
-  Future<Database> _initFullDatabase() async {
-    return _openDatabase(
+  Future<void> _initFullDatabase() async {
+    _fullDb = await _openDatabase(
       liteDbName: 'dictionary_lite.db',
       assetDbName: 'dictionary.db', // The asset is the lite version
       fullDbName: 'dictionary.db', // Downloaded full version name
@@ -83,7 +103,6 @@ class DatabaseHelper {
         final file = File(fullDbPath);
         final stat = await file.stat();
         if (stat.size > minFullDbSizeBytes) {
-          if (kDebugMode) print("DB_HELPER: Opening full DB: $fullDbName");
           return await openDatabase(fullDbPath, readOnly: true);
         } else {
           // The file is too small, likely corrupt. Delete it.
@@ -111,8 +130,6 @@ class DatabaseHelper {
         List<int> bytes =
             data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
         await File(liteDbPath).writeAsBytes(bytes, flush: true);
-        if (kDebugMode)
-          print("DB_HELPER: Copied asset '$assetDbName' to '$liteDbName'.");
       } catch (e) {
         if (kDebugMode)
           debugPrint(
@@ -122,7 +139,6 @@ class DatabaseHelper {
     }
 
     // 3. Open the lite database.
-    if (kDebugMode) print("DB_HELPER: Opening lite DB: $liteDbName");
     return await openDatabase(liteDbPath, readOnly: true);
   }
 

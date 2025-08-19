@@ -35,6 +35,8 @@ flutter:
     - assets/
     - assets/fonts/
     - assets/icon/
+    - assets/drawer_banner_light.png # Add your light theme banner
+    - assets/drawer_banner_dark.png  # Add your dark theme banner
 
   fonts:
     - family: Avenir
