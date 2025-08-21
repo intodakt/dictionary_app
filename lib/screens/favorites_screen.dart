@@ -1,4 +1,4 @@
-// UPDATE 3
+// UPDATE 53
 // lib/screens/favorites_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -63,18 +63,21 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use a Consumer just to react to favorite list changes (e.g., deletions)
+    final dictProvider = Provider.of<DictionaryProvider>(context);
+    final isEnglish = dictProvider.uiLanguage == 'en';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Favorites'),
+        title: Text(isEnglish ? 'Favorites' : 'Sevimlilar'),
       ),
       body: Consumer<DictionaryProvider>(
         builder: (context, provider, child) {
-          // The list of IDs is the source of truth for emptiness.
           if (provider.favoriteIds.isEmpty && _favorites.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
-                'You haven\'t added any words to your favorites yet.',
+                isEnglish
+                    ? 'You haven\'t added any words to your favorites yet.'
+                    : 'Siz hali sevimlilarga so\'z qo\'shmadingiz.',
                 textAlign: TextAlign.center,
               ),
             );
@@ -96,7 +99,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     icon: const Icon(Icons.favorite, color: Colors.red),
                     onPressed: () {
                       provider.toggleFavorite(entry);
-                      // Optimistically remove from the local list
                       setState(() {
                         _favorites.removeWhere((item) => item.id == entry.id);
                       });

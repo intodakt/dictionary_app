@@ -35,8 +35,8 @@ flutter:
     - assets/
     - assets/fonts/
     - assets/icon/
-    - assets/drawer_banner_light.png # Add your light theme banner
-    - assets/drawer_banner_dark.png  # Add your dark theme banner
+    - assets/drawer_banner_light.png
+    - assets/drawer_banner_dark.png
 
   fonts:
     - family: Avenir
@@ -54,6 +54,9 @@ flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/icon/icon.png"
+  # Add these lines for adaptive icons
+  adaptive_icon_background: "assets/icon/ic_launcher_background.png"
+  adaptive_icon_foreground: "assets/icon/ic_launcher_foreground.png"
   min_sdk_android: 21
 
 flutter_native_splash:

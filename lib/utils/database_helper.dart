@@ -1,4 +1,4 @@
-// UPDATE 17
+// UPDATE 52
 // lib/utils/database_helper.dart
 import 'dart:io';
 import 'dart:math';
@@ -18,23 +18,19 @@ class DatabaseHelper {
   static Database? _searchDb;
   static Database? _fullDb;
 
-  // A Future that completes when both databases are initialized.
   static Future<void>? _initFuture;
 
-  // Eagerly start the initialization process.
   static void initialize() {
     _initFuture ??= _instance._initDatabases();
   }
 
   Future<void> _initDatabases() async {
-    // Initialize both databases concurrently.
     await Future.wait([
       _initSearchDatabase(),
       _initFullDatabase(),
     ]);
   }
 
-  // The getters now await the single initialization Future.
   Future<Database> get searchDatabase async {
     await (_initFuture ??= _initDatabases());
     return _searchDb!;
@@ -45,7 +41,6 @@ class DatabaseHelper {
     return _fullDb!;
   }
 
-  /// Closes and nullifies database connections, forcing re-initialization on next access.
   Future<void> reinitializeDatabase() async {
     if (_searchDb != null) {
       await _searchDb!.close();
@@ -55,38 +50,31 @@ class DatabaseHelper {
       await _fullDb!.close();
       _fullDb = null;
     }
-    // Reset the initialization future.
     _initFuture = null;
-    // Re-initialize immediately.
     initialize();
     if (kDebugMode) {
       print("DB_HELPER: All databases reinitialized");
     }
   }
 
-  /// Initializes the search database using the centralized helper method.
   Future<void> _initSearchDatabase() async {
     _searchDb = await _openDatabase(
       liteDbName: 'search_index_lite.db',
-      assetDbName: 'search_index_lite.db', // Asset name for the lite version
-      fullDbName: 'search_index_full.db', // Downloaded full version name
-      minFullDbSizeBytes: 100000, // 100KB
+      assetDbName: 'search_index_lite.db',
+      fullDbName: 'search_index_full.db',
+      minFullDbSizeBytes: 100000,
     );
   }
 
-  /// Initializes the full dictionary database using the centralized helper method.
   Future<void> _initFullDatabase() async {
     _fullDb = await _openDatabase(
       liteDbName: 'dictionary_lite.db',
-      assetDbName: 'dictionary.db', // The asset is the lite version
-      fullDbName: 'dictionary.db', // Downloaded full version name
-      minFullDbSizeBytes: 1000000, // 1MB
+      assetDbName: 'dictionary.db',
+      fullDbName: 'dictionary.db',
+      minFullDbSizeBytes: 1000000,
     );
   }
 
-  /// A centralized and robust method to open a database.
-  /// It prioritizes the full (downloaded) version, falls back to the lite (bundled)
-  /// version, and copies the lite version from assets on the first run.
   Future<Database> _openDatabase({
     required String liteDbName,
     required String assetDbName,
@@ -97,7 +85,6 @@ class DatabaseHelper {
     final fullDbPath = join(documentsDirectory.path, fullDbName);
     final liteDbPath = join(documentsDirectory.path, liteDbName);
 
-    // 1. Prioritize the full, downloaded database if it exists and is valid.
     if (await File(fullDbPath).exists()) {
       try {
         final file = File(fullDbPath);
@@ -105,7 +92,6 @@ class DatabaseHelper {
         if (stat.size > minFullDbSizeBytes) {
           return await openDatabase(fullDbPath, readOnly: true);
         } else {
-          // The file is too small, likely corrupt. Delete it.
           if (kDebugMode)
             print("DB_HELPER: Corrupt full DB ($fullDbName), deleting.");
           await file.delete();
@@ -120,7 +106,6 @@ class DatabaseHelper {
       }
     }
 
-    // 2. If full DB not used, fall back to the lite version. Copy from assets if it doesn't exist.
     if (!await databaseExists(liteDbPath)) {
       if (kDebugMode)
         print(
@@ -138,7 +123,6 @@ class DatabaseHelper {
       }
     }
 
-    // 3. Open the lite database.
     return await openDatabase(liteDbPath, readOnly: true);
   }
 
@@ -180,46 +164,6 @@ class DatabaseHelper {
     return result.isNotEmpty;
   }
 
-  Future<DictionaryEntry?> getHangmanWord() async {
-    final db = await fullDatabase;
-    final random = Random();
-
-    const whereClause = '''
-      direction = 'ENG_UZB' AND
-      part_of_speech = 'noun' AND
-      LENGTH(word) <= 8 AND
-      INSTR(word, ' ') = 0
-    ''';
-
-    final countResult =
-        await db.rawQuery('SELECT COUNT(*) FROM dictionary WHERE $whereClause');
-    final count = Sqflite.firstIntValue(countResult);
-
-    if (count == null || count == 0) return getGameWord();
-
-    for (int i = 0; i < 20; i++) {
-      final randomOffset = random.nextInt(count);
-      final List<Map<String, dynamic>> maps = await db.query(
-        'dictionary',
-        where: whereClause,
-        limit: 1,
-        offset: randomOffset,
-      );
-
-      if (maps.isNotEmpty) {
-        final entry = DictionaryEntry.fromMap(maps.first);
-        if (entry.frequency.length >= 3) {
-          final freqSum =
-              entry.frequency[0] + entry.frequency[1] + entry.frequency[2];
-          if (freqSum > 70) {
-            return entry;
-          }
-        }
-      }
-    }
-    return getGameWord();
-  }
-
   Future<DictionaryEntry?> getGameWordForLevel(int level) async {
     final db = await fullDatabase;
     final random = Random();
@@ -236,6 +180,7 @@ class DatabaseHelper {
         {required String lenCondition, required int freq}) async {
       final whereClause = '''
         direction = 'ENG_UZB' AND
+        main_translation_word IS NOT NULL AND 
         LENGTH(main_translation_word) $lenCondition AND
         INSTR(main_translation_word, ' ') = 0
       ''';
@@ -278,10 +223,51 @@ class DatabaseHelper {
     return word;
   }
 
+  Future<List<DictionaryEntry>> getDualBreakWords(
+      int count, int frequency, Set<int> excludeIds) async {
+    final db = await fullDatabase;
+    String whereClause = '''
+      direction = 'ENG_UZB' AND
+      LENGTH(word) > 2 AND
+      main_translation_word IS NOT NULL AND LENGTH(main_translation_word) > 2 AND
+      INSTR(word, ' ') = 0 AND
+      INSTR(main_translation_word, ' ') = 0
+    ''';
+    if (excludeIds.isNotEmpty) {
+      whereClause += ' AND id NOT IN (${excludeIds.join(',')})';
+    }
+
+    // Fetch a limited random sample to avoid memory issues.
+    final candidateMaps = await db.query(
+      'dictionary',
+      where: whereClause,
+      orderBy: 'RANDOM()',
+      limit: 100, // Fetch more than needed to allow for frequency filtering.
+    );
+
+    final filteredWords = <DictionaryEntry>[];
+    for (var map in candidateMaps) {
+      final entry = DictionaryEntry.fromMap(map);
+      if (entry.frequency.length >= 3) {
+        final freqSum =
+            entry.frequency[0] + entry.frequency[1] + entry.frequency[2];
+        if (freqSum > frequency) {
+          filteredWords.add(entry);
+          if (filteredWords.length >= count) {
+            break; // Stop once we have enough words.
+          }
+        }
+      }
+    }
+
+    return filteredWords;
+  }
+
   Future<DictionaryEntry?> getGameWord() async {
     final db = await fullDatabase;
     const whereClause = '''
       direction = 'ENG_UZB' AND
+      main_translation_word IS NOT NULL AND
       LENGTH(main_translation_word) <= 10 AND
       INSTR(main_translation_word, ' ') = 0
     ''';

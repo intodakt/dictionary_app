@@ -1,3 +1,6 @@
+// UPDATE 61
+// lib/screens/guess_it_screen.dart
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
@@ -24,84 +27,70 @@ class _GuessItScreenState extends State<GuessItScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
     final isEnglish =
-        Provider.of<DictionaryProvider>(context).uiLanguage == 'en';
+        Provider.of<DictionaryProvider>(context, listen: false).uiLanguage ==
+            'en';
     return Scaffold(
       appBar: AppBar(
         title: const Text('Worder'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
+          // Restored the info button
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () => _showInfoDialog(context, isEnglish),
           ),
         ],
       ),
-      body: Consumer<GameProvider>(
-        builder: (context, provider, child) {
-          if (provider.currentWord == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return Padding(
-            padding: EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 16.0 + bottomPadding),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildGameStats(provider),
-                Column(
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFC6EA8D),
+                  Color(0xFFFE90AF),
+                ],
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Consumer<GameProvider>(
+              builder: (context, provider, child) {
+                if (provider.currentWord == null) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return child!;
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildLanguageCard(
-                      lang: provider.currentWord!.direction.split('_')[0],
-                      word: provider.currentWord!.word,
+                    _GameStats(),
+                    Column(
+                      children: [
+                        _QuestionCard(),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8.0),
+                          child: Icon(Icons.arrow_downward),
+                        ),
+                        _AnswerCard(),
+                      ],
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8.0),
-                      child: Icon(Icons.arrow_downward),
-                    ),
-                    _buildLanguageCard(
-                      lang: provider.currentWord!.direction.split('_')[1],
-                      child: _buildAnswerBoxes(provider),
-                    ),
+                    _LetterButtons(),
+                    _ControlButtons(),
                   ],
                 ),
-                _buildLetterButtons(provider),
-                _buildControlButtons(provider, isEnglish),
-              ],
+              ),
             ),
-          );
-        },
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildGameStats(GameProvider provider) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildStatItem('Level', provider.level.toString()),
-            _buildStatItem('Score', provider.score.toString()),
-            _buildStatItem('Hints', provider.hints.toString()),
-            _buildStatItem('Max Score', provider.maxScore.toString(),
-                color: theme.colorScheme.primary),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem(String label, String value, {Color? color}) {
-    final theme = Theme.of(context);
-    return Column(
-      children: [
-        Text(label, style: theme.textTheme.labelSmall),
-        Text(value,
-            style: theme.textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold, color: color)),
-      ],
     );
   }
 
@@ -132,9 +121,245 @@ class _GuessItScreenState extends State<GuessItScreen> {
       ),
     );
   }
+}
 
-  Widget _buildLanguageCard(
-      {required String lang, String? word, Widget? child}) {
+// --- Refactored Widgets ---
+
+class _GameStats extends StatelessWidget {
+  const _GameStats();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Consumer<GameProvider>(
+      builder: (context, provider, child) {
+        return Card(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStatItem(context, 'Level', provider.level.toString()),
+                _buildStatItem(context, 'Score', provider.score.toString()),
+                _buildStatItem(context, 'Hints', provider.hints.toString()),
+                _buildStatItem(
+                    context, 'Max Score', provider.maxScore.toString(),
+                    color: theme.colorScheme.primary),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatItem(BuildContext context, String label, String value,
+      {Color? color}) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        Text(label, style: theme.textTheme.labelSmall),
+        Text(value,
+            style: theme.textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+}
+
+class _QuestionCard extends StatelessWidget {
+  const _QuestionCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<GameProvider>(
+      builder: (context, provider, child) {
+        return _LanguageCard(
+          lang: provider.currentWord!.direction.split('_')[0],
+          word: provider.currentWord!.word,
+        );
+      },
+    );
+  }
+}
+
+class _AnswerCard extends StatelessWidget {
+  const _AnswerCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<GameProvider>(
+      builder: (context, provider, child) {
+        return _LanguageCard(
+          lang: provider.currentWord!.direction.split('_')[1],
+          child: _AnswerBoxes(
+            answer: provider.currentWord!.mainTranslationWord!,
+            userGuess: provider.userGuess,
+            isCorrect: provider.isCorrect,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LetterButtons extends StatelessWidget {
+  const _LetterButtons();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<GameProvider>(
+      builder: (context, provider, child) {
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 6,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+          ),
+          itemCount: provider.shuffledLetters.length,
+          itemBuilder: (context, index) {
+            final letter = provider.shuffledLetters[index];
+            return ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => provider.onLetterSelected(letter),
+              child: Text(
+                letter.toUpperCase(),
+                style: const TextStyle(fontSize: 20),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _ControlButtons extends StatelessWidget {
+  const _ControlButtons();
+
+  @override
+  Widget build(BuildContext context) {
+    final isEnglish =
+        Provider.of<DictionaryProvider>(context, listen: false).uiLanguage ==
+            'en';
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Consumer<GameProvider>(
+      builder: (context, provider, child) {
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                ),
+                onPressed: provider.backspace,
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.backspace_outlined),
+                    SizedBox(height: 4),
+                    Text('Delete', style: TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                ),
+                onPressed: provider.useHint,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.lightbulb_outline),
+                    const SizedBox(height: 4),
+                    Text('Hint (${provider.hints})',
+                        style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      isDark ? const Color(0xFF93C1C1) : Colors.blue.shade50,
+                  foregroundColor: isDark
+                      ? Colors.black87
+                      : theme.textTheme.bodyLarge?.color,
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                ),
+                onPressed: () =>
+                    _showEndGameDialog(context, provider, isEnglish),
+                child: const Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.close),
+                    SizedBox(height: 4),
+                    Text('End Game',
+                        style: TextStyle(fontSize: 12),
+                        textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEndGameDialog(
+      BuildContext context, GameProvider provider, bool isEnglish) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEnglish ? 'End Game?' : 'O\'yinni Tugatish?'),
+        content: Text(isEnglish
+            ? 'Are you sure you want to end the current game? Your score will be reset.'
+            : 'Haqiqatan ham joriy o\'yinni tugatmoqchimisiz? Hozirgi yeg\'gan ballaringiz yo\'qoladi.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(isEnglish ? 'Cancel' : 'Bekor Qilish'),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.endGame();
+              Navigator.of(context).pop();
+            },
+            child: Text(isEnglish ? 'End Game' : 'Tugatish'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Helper Widgets ---
+
+class _LanguageCard extends StatelessWidget {
+  final String lang;
+  final String? word;
+  final Widget? child;
+
+  const _LanguageCard({required this.lang, this.word, this.child});
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
@@ -171,15 +396,27 @@ class _GuessItScreenState extends State<GuessItScreen> {
           ),
           const SizedBox(height: 16),
           word != null
-              ? Text(word, style: theme.textTheme.headlineSmall)
+              ? Text(word!, style: theme.textTheme.headlineSmall)
               : child ?? const SizedBox.shrink(),
         ],
       ),
     );
   }
+}
 
-  Widget _buildAnswerBoxes(GameProvider provider) {
-    final answer = provider.currentWord!.mainTranslationWord!;
+class _AnswerBoxes extends StatelessWidget {
+  final String answer;
+  final String userGuess;
+  final bool isCorrect;
+
+  const _AnswerBoxes({
+    required this.answer,
+    required this.userGuess,
+    required this.isCorrect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       children: List.generate(answer.length, (index) {
         return Flexible(
@@ -187,7 +424,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
             height: 35,
             margin: const EdgeInsets.symmetric(horizontal: 2.0),
             decoration: BoxDecoration(
-              color: provider.isCorrect
+              color: isCorrect
                   ? Colors.green.shade100
                   : Theme.of(context).scaffoldBackgroundColor,
               border: Border.all(color: Colors.grey),
@@ -195,9 +432,7 @@ class _GuessItScreenState extends State<GuessItScreen> {
             ),
             child: Center(
               child: Text(
-                index < provider.userGuess.length
-                    ? provider.userGuess[index].toUpperCase()
-                    : '',
+                index < userGuess.length ? userGuess[index].toUpperCase() : '',
                 style:
                     const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
@@ -205,128 +440,6 @@ class _GuessItScreenState extends State<GuessItScreen> {
           ),
         );
       }),
-    );
-  }
-
-  Widget _buildLetterButtons(GameProvider provider) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 6,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-      ),
-      itemCount: provider.shuffledLetters.length,
-      itemBuilder: (context, index) {
-        final letter = provider.shuffledLetters[index];
-        return ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            padding: EdgeInsets.zero,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          onPressed: () => provider.onLetterSelected(letter),
-          child: Text(
-            letter.toUpperCase(),
-            style: const TextStyle(fontSize: 20),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildControlButtons(GameProvider provider, bool isEnglish) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Expanded(
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-            ),
-            onPressed: provider.backspace,
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.backspace_outlined),
-                SizedBox(height: 4),
-                Text('Delete', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-            ),
-            onPressed: provider.useHint,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.lightbulb_outline),
-                const SizedBox(height: 4),
-                Text('Hint (${provider.hints})',
-                    style: const TextStyle(fontSize: 12)),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  isDark ? const Color(0xFF93C1C1) : Colors.blue.shade50,
-              foregroundColor:
-                  isDark ? Colors.black87 : theme.textTheme.bodyLarge?.color,
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-            ),
-            onPressed: () => _showEndGameDialog(context, provider, isEnglish),
-            child: const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.close),
-                SizedBox(height: 4),
-                Text('End Game',
-                    style: TextStyle(fontSize: 12),
-                    textAlign: TextAlign.center),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showEndGameDialog(
-      BuildContext context, GameProvider provider, bool isEnglish) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isEnglish ? 'End Game?' : 'O\'yinni Tugatish?'),
-        content: Text(isEnglish
-            ? 'Are you sure you want to end the current game? Your score will be reset.'
-            : 'Haqiqatan ham joriy o\'yinni tugatmoqchimisiz? Hozirgi yeg\'gan ballaringiz yo\'qoladi.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(isEnglish ? 'Cancel' : 'Bekor Qilish'),
-          ),
-          TextButton(
-            onPressed: () {
-              provider.endGame();
-              Navigator.of(context).pop();
-            },
-            child: Text(isEnglish ? 'End Game' : 'Tugatish'),
-          ),
-        ],
-      ),
     );
   }
 }

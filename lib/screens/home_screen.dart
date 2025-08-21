@@ -1,4 +1,4 @@
-// UPDATE 25
+// UPDATE 36
 // lib/screens/home_screen.dart
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -307,9 +307,9 @@ class _HomeBody extends StatelessWidget {
                 style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 24),
             const Text(
-                'Please wait... App functionality is disabled during download.',
+                'Please DO NOT close the app while the download is in progress.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey)),
+                style: TextStyle(color: Colors.red)),
           ],
         ),
       ),
@@ -793,24 +793,27 @@ class _ExpandedDetails extends StatelessWidget {
           if (entry.exampleSentences.isNotEmpty) ...[
             const Text('Examples:',
                 style: TextStyle(fontWeight: FontWeight.bold)),
-            ...entry.exampleSentences
-                .take(2)
-                .map((ex) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('• ${ex["sentence"] ?? ""}'),
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(left: 16.0, top: 2.0),
-                            child: Text(ex["translation"] ?? "",
-                                style: TextStyle(color: Colors.grey.shade600)),
-                          ),
-                        ],
-                      ),
-                    ))
-                .toList(),
+            ...entry.exampleSentences.take(2).map((ex) {
+              final sentence = ex["sentence"] ?? "";
+              final translation = ex["translation"] ?? "";
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HighlightedExampleSentence(
+                      text: sentence,
+                      highlight: entry.word,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16.0, top: 2.0),
+                      child: Text(translation,
+                          style: TextStyle(color: Colors.grey.shade600)),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ],
         ],
       ),
@@ -940,24 +943,25 @@ class _WordDetailView extends StatelessWidget {
               _buildSection(
                 context,
                 isEnglish ? 'Example Sentences' : 'Misol Jumlalar',
-                entry.exampleSentences
-                    .map((ex) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('• ${ex["sentence"] ?? ""}'),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.only(left: 16.0, top: 2.0),
-                                child: Text(ex["translation"] ?? "",
-                                    style:
-                                        TextStyle(color: Colors.grey.shade600)),
-                              ),
-                            ],
-                          ),
-                        ))
-                    .toList(),
+                entry.exampleSentences.map((ex) {
+                  final sentence = ex["sentence"] ?? "";
+                  final translation = ex["translation"] ?? "";
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _HighlightedExampleSentence(
+                            text: sentence, highlight: entry.word),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16.0, top: 2.0),
+                          child: Text(translation,
+                              style: TextStyle(color: Colors.grey.shade600)),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ),
               const SizedBox(height: 16),
               Align(
@@ -1073,6 +1077,71 @@ class _FrequencyChart extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+// A new reusable widget to display sentences with highlighted words.
+class _HighlightedExampleSentence extends StatelessWidget {
+  final String text;
+  final String highlight;
+
+  const _HighlightedExampleSentence({
+    required this.text,
+    required this.highlight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    final highlightStyle = TextStyle(
+      backgroundColor: Colors.blue.withOpacity(0.2), // Light blue highlight
+      fontWeight: FontWeight.bold,
+    );
+    final defaultStyle = theme.textTheme.bodyMedium;
+
+    if (highlight.isEmpty ||
+        !text.toLowerCase().contains(highlight.toLowerCase())) {
+      return Text('• $text', style: defaultStyle);
+    }
+
+    final spans = <TextSpan>[];
+    final lowerText = text.toLowerCase();
+    final lowerHighlight = highlight.toLowerCase();
+
+    int lastMatchEnd = 0;
+    int currentMatchStart = lowerText.indexOf(lowerHighlight);
+
+    while (currentMatchStart != -1) {
+      if (currentMatchStart > lastMatchEnd) {
+        spans.add(
+            TextSpan(text: text.substring(lastMatchEnd, currentMatchStart)));
+      }
+      final matchEnd = currentMatchStart + highlight.length;
+      spans.add(TextSpan(
+        text: text.substring(currentMatchStart, matchEnd),
+        style: highlightStyle,
+      ));
+      lastMatchEnd = matchEnd;
+      currentMatchStart = lowerText.indexOf(lowerHighlight, lastMatchEnd);
+    }
+
+    if (lastMatchEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastMatchEnd)));
+    }
+
+    return RichText(
+      text: TextSpan(
+        children: [
+          const TextSpan(text: '• '),
+          ...spans,
+        ],
+        style: defaultStyle,
+      ),
     );
   }
 }

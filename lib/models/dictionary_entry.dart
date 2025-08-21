@@ -1,3 +1,4 @@
+// lib/models/dictionary_entry.dart
 import 'dart:convert';
 
 class DictionaryEntry {
@@ -72,11 +73,15 @@ class DictionaryEntry {
       synonyms: List<String>.from(_safeJsonDecode(map['synonyms']) ?? []),
       antonyms: List<String>.from(_safeJsonDecode(map['antonyms']) ?? []),
 
-      // Use whereType for a cleaner and safer cast
+      // Safely handle potential null values within the example sentences map.
       exampleSentences: decodedSentences is List
-          ? List<Map<String, String>>.from(decodedSentences
-              .whereType<Map>()
-              .map((item) => Map<String, String>.from(item)))
+          ? List<Map<String, String>>.from(
+              decodedSentences.whereType<Map>().map((item) {
+              // Manually build the map, providing empty strings for null values.
+              final sentence = item['sentence'] as String? ?? '';
+              final translation = item['translation'] as String? ?? '';
+              return {'sentence': sentence, 'translation': translation};
+            }))
           : [],
     );
   }

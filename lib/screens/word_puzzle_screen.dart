@@ -1,4 +1,4 @@
-// UPDATE 6
+// UPDATE 61
 // lib/screens/word_puzzle_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -53,7 +53,10 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Fiftinity'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
+          // Restored info and restart buttons
           IconButton(
             icon: const Icon(Icons.info_outline),
             onPressed: () => _showInfoDialog(context),
@@ -65,27 +68,44 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
           )
         ],
       ),
-      // The main Consumer now only handles the loading state.
-      // The UI is composed of smaller, independent widgets for performance.
-      body: Consumer<WordPuzzleProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return child!;
-        },
-        child: const Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              _InfoBar(),
-              SizedBox(height: 16),
-              _GameBoard(),
-              SizedBox(height: 16),
-              _FoundWords(),
-            ],
+      extendBodyBehindAppBar: true,
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFA890FE),
+                  Color(0xFFEA8D8D),
+                ],
+              ),
+            ),
           ),
-        ),
+          SafeArea(
+            child: Consumer<WordPuzzleProvider>(
+              builder: (context, provider, child) {
+                if (provider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return child!;
+              },
+              child: const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    _InfoBar(),
+                    SizedBox(height: 16),
+                    _GameBoard(),
+                    SizedBox(height: 16),
+                    _FoundWords(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -157,15 +177,12 @@ class _WordPuzzleScreenState extends State<WordPuzzleScreen> {
   }
 }
 
-// UPDATE 6: Refactored UI into smaller, more performant widgets.
-
 class _InfoBar extends StatelessWidget {
   const _InfoBar();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // This Consumer only rebuilds the info bar.
     return Consumer<WordPuzzleProvider>(
       builder: (context, provider, child) {
         return Card(
@@ -201,13 +218,12 @@ class _GameBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    // This Consumer only rebuilds the game board.
     return Consumer<WordPuzzleProvider>(
       builder: (context, provider, child) {
         return Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF93C1C1) : Colors.blue.shade50,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: theme.dividerColor),
           ),
@@ -261,7 +277,6 @@ class _FoundWords extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // This Consumer only rebuilds the found words section.
     return Consumer<WordPuzzleProvider>(
       builder: (context, provider, child) {
         return Expanded(

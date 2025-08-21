@@ -98,7 +98,7 @@ class MyApp extends StatelessWidget {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              cardColor: Colors.black,
+              cardColor: const Color(0xFF0a0a0a),
               useMaterial3: true,
             ),
             themeMode: themeProvider.themeMode,

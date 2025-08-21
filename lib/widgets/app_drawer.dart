@@ -1,4 +1,4 @@
-// UPDATE 27
+// UPDATE 47
 // lib/widgets/app_drawer.dart
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -6,15 +6,17 @@ import 'package:provider/provider.dart';
 import '../providers/dictionary_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/game_provider.dart';
-import '../providers/hangman_provider.dart';
+// import '../providers/hangman_provider.dart'; // Removed
 import '../providers/theme_provider.dart';
 import '../providers/word_puzzle_provider.dart';
+import '../providers/dual_break_provider.dart';
 import '../screens/favorites_screen.dart';
 import '../screens/about_screen.dart';
 import '../screens/guess_it_screen.dart';
-import '../screens/hangman_screen.dart';
+// import '../screens/hangman_screen.dart'; // Removed
 import '../screens/word_puzzle_screen.dart';
 import '../screens/download_screen.dart';
+import '../screens/dual_break_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -37,12 +39,12 @@ class AppDrawer extends StatelessWidget {
             children: [
               // Glassmorphism Effect
               BackdropFilter(
-                filter: ui.ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+                filter: ui.ImageFilter.blur(sigmaX: 25.0, sigmaY: 25.0),
                 child: Container(
                   decoration: BoxDecoration(
                     color: isDark
-                        ? Colors.white.withOpacity(0.08)
-                        : Colors.black.withOpacity(0.08),
+                        ? const ui.Color(0xFFA1C4FD).withOpacity(0.15)
+                        : const ui.Color(0xFFA1C4FD).withOpacity(0.15),
                   ),
                 ),
               ),
@@ -87,41 +89,34 @@ class AppDrawer extends StatelessWidget {
                             ),
                           ),
                           // Gradient Overlay for Text Legibility
-                          Positioned.fill(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.transparent,
-                                    Colors.black.withOpacity(0.7)
-                                  ],
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  stops: const [
-                                    0.6,
-                                    1.0
-                                  ], // Gradient starts at the halfway point
-                                ),
-                              ),
-                            ),
-                          ),
+                          // Positioned.fill(
+                          //   child: Container(
+                          //     decoration: BoxDecoration(
+                          //       gradient: LinearGradient(
+                          //         colors: [
+                          //           Colors.transparent,
+                          //           Colors.black.withOpacity(0.5)
+                          //         ],
+                          //         begin: Alignment.topCenter,
+                          //         end: Alignment.bottomCenter,
+                          //         stops: const [
+                          //           0.5,
+                          //           1.0
+                          //         ], // Gradient starts at the halfway point
+                          //       ),
+                          //     ),
+                          //   ),
+                          // ),
                           // App Name Text
                           const Positioned(
-                            bottom: 8.0,
+                            bottom: 16.0,
                             left: 16.0,
                             child: Text(
                               'Hoshiya',
                               style: TextStyle(
-                                fontSize: 32,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    blurRadius: 4.0,
-                                    color: Colors.black54,
-                                    offset: Offset(1.0, 1.0),
-                                  ),
-                                ],
+                                color: ui.Color.fromARGB(255, 160, 195, 204),
                               ),
                             ),
                           ),
@@ -251,16 +246,16 @@ class AppDrawer extends StatelessWidget {
                     ),
                     ListTile(
                       visualDensity: compactDensity,
-                      leading: const Icon(Icons.gamepad_outlined),
-                      title: const Text('The Hangman', style: drawerTextStyle),
+                      leading: const Icon(Icons.view_module),
+                      title: const Text('Dual Break', style: drawerTextStyle),
                       onTap: () {
                         Navigator.pop(context);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => ChangeNotifierProvider(
-                              create: (_) => HangmanProvider()..init(),
-                              child: const HangmanScreen(),
+                              create: (_) => DualBreakProvider(),
+                              child: const DualBreakScreen(),
                             ),
                           ),
                         );
@@ -341,42 +336,14 @@ class AppDrawer extends StatelessWidget {
       onTap = null;
     } else if (hasFullVersion) {
       leadingIcon = const Icon(Icons.check_circle, color: Colors.green);
-      title = isEnglish ? 'Full Version Ready' : 'To\'liq Versiya Tayyor';
-      subtitle = isEnglish ? 'Tap to manage' : 'Boshqarish uchun bosing';
-      onTap = () {
-        Navigator.pop(context);
-        _showManageFullVersionDialog(
-            context, provider, downloadProvider, isEnglish);
-      };
-    } else if (isDownloadError) {
-      leadingIcon = const Icon(Icons.error, color: Colors.red);
-      title = isEnglish ? 'Download Failed' : 'Yuklab Olish Xato';
-      subtitle = isEnglish ? 'Tap to retry' : 'Qaytadan urining';
-      onTap = () {
-        Navigator.pop(context);
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const DownloadScreen()),
-        );
-      };
-    } else if (isSuccess) {
-      leadingIcon = const Icon(Icons.check_circle, color: Colors.green);
-      title = isEnglish ? 'Download Complete' : 'Yuklab Olish Tugadi';
-      subtitle = isEnglish ? 'Setting up...' : 'Sozlanmoqda...';
-      onTap = null;
+      title = isEnglish ? 'Full Version' : 'To\'liq Versiya';
+      subtitle = isEnglish ? 'Manage downloaded files' : 'Fayllarni boshqarish';
     } else {
       leadingIcon = const Icon(Icons.cloud_download_outlined);
       title = isEnglish
           ? 'Download Full Version'
           : 'To\'liq Versiyani Yuklab Olish';
       subtitle = null;
-      onTap = () {
-        Navigator.pop(context);
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const DownloadScreen()),
-        );
-      };
     }
 
     return ListTile(
@@ -386,110 +353,15 @@ class AppDrawer extends StatelessWidget {
       subtitle: subtitle != null
           ? Text(subtitle, style: const TextStyle(fontSize: 12))
           : null,
-      onTap: onTap,
-      enabled: onTap != null,
-    );
-  }
-
-  void _showManageFullVersionDialog(
-    BuildContext context,
-    DictionaryProvider provider,
-    DownloadProvider downloadProvider,
-    bool isEnglish,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-            isEnglish ? 'Manage Full Version' : 'To\'liq Versiyani Boshqarish'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isEnglish
-                  ? 'Full version is currently active. You can:'
-                  : 'To\'liq versiya faol. Siz quyidagi amallarni bajarishingiz mumkin:',
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isEnglish
-                  ? '• Access to complete dictionary'
-                  : '• To\'liq lug\'atdan foydalanish',
-              style: const TextStyle(fontSize: 14),
-            ),
-            Text(
-              isEnglish ? '• Offline functionality' : '• Internetisiz ishlash',
-              style: const TextStyle(fontSize: 14),
-            ),
-            Text(
-              isEnglish
-                  ? '• Faster search results'
-                  : '• Tezroq qidiruv natijalari',
-              style: const TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(isEnglish ? 'Close' : 'Yopish'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _showDeleteConfirmation(context, downloadProvider, isEnglish);
+      onTap: isDownloading
+          ? null
+          : () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const DownloadScreen()),
+              );
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(isEnglish ? 'Delete' : 'O\'chirish'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteConfirmation(
-    BuildContext context,
-    DownloadProvider downloadProvider,
-    bool isEnglish,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isEnglish
-            ? 'Delete Full Version?'
-            : 'To\'liq Versiyani O\'chirishni Xohlaysizmi?'),
-        content: Text(
-          isEnglish
-              ? 'This will delete the downloaded full version and you\'ll need to download it again to use offline features.'
-              : 'Bu yuklab olingan to\'liq versiyani o\'chiradi va internetisiz ishlash uchun qaytadan yuklab olishingiz kerak bo\'ladi.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(isEnglish ? 'Cancel' : 'Bekor qilish'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(context).pop();
-              await downloadProvider.deleteFullDatabase();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      isEnglish
-                          ? 'Full version deleted successfully'
-                          : 'To\'liq versiya muvaffaqiyatli o\'chirildi',
-                    ),
-                  ),
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(isEnglish ? 'Delete' : 'O\'chirish'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -502,7 +374,7 @@ class AppDrawer extends StatelessWidget {
             : 'Kengaytirilgan Qidiruv Yoqildi'),
         content: Text(isEnglish
             ? 'Search will now look for your query inside word definitions and example sentences, not just the words themselves. Slower than normal search.'
-            : 'Qidiruv faqat so\'zlarning o\'zida emas, balki ularning izohlari va misol jumlalari ichida ham izlaydi. Odadiy qidiruvdan sekinroq ishlaydi'),
+            : 'Endi qidiruv faqat so\'zlarning o\'zidan emas, balki ularning izohlari va misol jumlalari ichidan ham izlaydi. Odatiy qidiruvdan sekinroq.'),
         actionsPadding:
             const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         actions: [
